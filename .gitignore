@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+electron/node_modules/
+
+# Build output
+dist/
+electron/dist/
+*.app
+
+# Generated icon intermediates
+electron/icon.iconset/
+
+# Python legacy / caches
+__pycache__/
+*.pyc
+.legacy/
+
+# Logs
+*.log
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+electron/.npmrc

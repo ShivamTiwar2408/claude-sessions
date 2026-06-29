@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude Sessions</title>
+<style>
+  /* ---- Soft / warm "paper" modern UI ---------------------------------- */
+  :root {
+    --paper:#faf7f2; --paper2:#f3ede3; --card:#ffffff; --ink:#2b2724;
+    --muted:#8d8378; --line:#e9e1d4; --line2:#ded3c2;
+    --clay:#d97757; --clay-d:#c2623f; --clay-soft:#fbeee7;
+    --blue:#5b7cc7; --blue-soft:#eaf0fb;
+    --green:#5a9a6f; --leaf:#7ba05b; --leaf-soft:#eef4e6;
+    --shadow:0 1px 2px rgba(60,45,30,.05), 0 6px 20px rgba(60,45,30,.06);
+    --shadow-lg:0 10px 40px rgba(60,45,30,.12);
+    --radius:16px;
+  }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; }
+  body {
+    font:14.5px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:
+      radial-gradient(1200px 600px at 100% -10%, #fff6ee 0%, transparent 60%),
+      radial-gradient(1000px 700px at -10% 110%, #f1f5ec 0%, transparent 55%),
+      var(--paper);
+    color:var(--ink); height:100vh; overflow:hidden;
+  }
+  h1,h2,h3 { font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif; }
+  .app { display:grid; grid-template-columns:392px 1fr; height:100vh; }
+
+  /* ---- Sidebar -------------------------------------------------------- */
+  .sidebar { display:flex; flex-direction:column; min-height:0;
+             background:rgba(255,255,255,.55); backdrop-filter:blur(8px);
+             border-right:1px solid var(--line); }
+  .head { padding:30px 22px 14px; -webkit-app-region:drag; }
+  .head .brand { display:flex; align-items:center; gap:11px; }
+  .logo { width:30px; height:30px; border-radius:9px; flex-shrink:0;
+          background:radial-gradient(circle at 50% 50%, var(--clay), var(--clay-d));
+          position:relative; box-shadow:var(--shadow); }
+  .logo::before, .logo::after { content:""; position:absolute; inset:0; margin:auto;
+          background:#fff; border-radius:2px; }
+  .logo::before { width:3px; height:16px; }
+  .logo::after { width:16px; height:3px; }
+  .head h1 { margin:0; font-size:19px; font-weight:600; letter-spacing:.2px; }
+  .head .sub { color:var(--muted); font-size:12.5px; margin-top:3px; }
+  .head .sub a { color:var(--clay-d); text-decoration:none; font-weight:600; }
+
+  .controls { padding:6px 16px 14px; display:flex; flex-direction:column; gap:9px;
+              -webkit-app-region:no-drag; }
+  .searchwrap { position:relative; }
+  .searchwrap svg { position:absolute; left:13px; top:50%; transform:translateY(-50%);
+                    width:15px; height:15px; opacity:.4; }
+  input, select {
+    width:100%; padding:11px 13px; background:var(--card); color:var(--ink);
+    border:1px solid var(--line2); border-radius:12px; font-size:13.5px; outline:none;
+    transition:border-color .15s, box-shadow .15s; font-family:inherit;
+  }
+  #search { padding-left:36px; }
+  input:focus, select:focus { border-color:var(--clay); box-shadow:0 0 0 3px var(--clay-soft); }
+  .row { display:flex; gap:9px; } .row > * { flex:1; }
+  .count { padding:4px 22px 8px; color:var(--muted); font-size:11.5px;
+           text-transform:uppercase; letter-spacing:.7px; font-weight:600; }
+  .list { overflow-y:auto; flex:1; min-height:0; padding:0 12px 18px; }
+
+  .item { background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+          padding:14px 15px; margin-bottom:10px; cursor:pointer; box-shadow:var(--shadow);
+          transition:transform .12s ease, box-shadow .12s ease, border-color .12s; }
+  .item:hover { transform:translateY(-2px); box-shadow:var(--shadow-lg); border-color:var(--line2); }
+  .item.active { border-color:var(--clay); box-shadow:0 0 0 3px var(--clay-soft), var(--shadow); }
+  .item .t { font-weight:600; font-size:14px; margin-bottom:4px; color:var(--ink); }
+  .item .s { color:var(--muted); font-size:12.5px; overflow:hidden; text-overflow:ellipsis;
+             display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+  .meta { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; align-items:center; }
+  .pill { font-size:11px; padding:3px 9px; border-radius:20px; white-space:nowrap;
+          background:var(--paper2); color:var(--muted); font-weight:500; }
+  .pill.time { background:var(--clay-soft); color:var(--clay-d); }
+  .pill.branch { background:var(--blue-soft); color:var(--blue); }
+  .pill.sub { background:var(--leaf-soft); color:#4f7a3a; font-weight:600; }
+  .pill.path { max-width:170px; overflow:hidden; text-overflow:ellipsis; }
+
+  /* ---- Detail --------------------------------------------------------- */
+  .detail { display:flex; flex-direction:column; min-height:0; }
+  .welcome { height:100%; display:flex; flex-direction:column; align-items:center;
+             justify-content:center; gap:14px; color:var(--muted); text-align:center; }
+  .welcome .big { width:64px; height:64px; border-radius:18px;
+     background:radial-gradient(circle at 50% 50%, var(--clay), var(--clay-d));
+     position:relative; box-shadow:var(--shadow-lg); }
+  .welcome .big::before,.welcome .big::after{content:"";position:absolute;inset:0;margin:auto;background:#fff;border-radius:3px;}
+  .welcome .big::before{width:5px;height:34px;} .welcome .big::after{width:34px;height:5px;}
+  .welcome h2 { margin:6px 0 0; color:var(--ink); font-size:22px; }
+
+  .dhead { padding:26px 30px 18px; -webkit-app-region:drag;
+           border-bottom:1px solid var(--line); display:flex; gap:18px;
+           justify-content:space-between; align-items:flex-start;
+           background:rgba(255,255,255,.5); }
+  .dhead h2 { margin:0 0 9px; font-size:21px; line-height:1.25; }
+  .dmeta { color:var(--muted); font-size:12.5px; display:flex; gap:7px; flex-wrap:wrap; align-items:center; }
+  .dmeta .dot { opacity:.4; }
+  .btns { display:flex; gap:9px; flex-shrink:0; -webkit-app-region:no-drag; }
+  button { cursor:pointer; border:1px solid var(--line2); background:var(--card); color:var(--ink);
+           padding:10px 16px; border-radius:12px; font-size:13px; font-weight:600;
+           white-space:nowrap; font-family:inherit; transition:all .12s; box-shadow:var(--shadow); }
+  button:hover { transform:translateY(-1px); box-shadow:var(--shadow-lg); }
+  button.primary { background:linear-gradient(180deg, var(--clay), var(--clay-d));
+                   border-color:var(--clay-d); color:#fff; }
+
+  .transcript { overflow-y:auto; flex:1; padding:26px 30px 60px; min-height:0; }
+  .thread { max-width:860px; margin:0 auto; }
+  .msg { margin-bottom:20px; }
+  .msg .who { font-size:11px; text-transform:uppercase; letter-spacing:.8px;
+              margin-bottom:6px; font-weight:700; display:flex; align-items:center; gap:7px; }
+  .who .av { width:18px; height:18px; border-radius:6px; display:inline-block; }
+  .msg.user .who { color:var(--blue); } .msg.user .av { background:var(--blue); }
+  .msg.assistant .who { color:var(--clay-d); } .msg.assistant .av { background:var(--clay); }
+  .bubble { background:var(--card); border:1px solid var(--line); border-radius:14px;
+            padding:14px 17px; white-space:pre-wrap; word-wrap:break-word; box-shadow:var(--shadow);
+            font-size:14px; }
+  .msg.user .bubble { background:var(--blue-soft); border-color:#dde6f7; }
+  .tools { margin-top:8px; display:flex; gap:6px; flex-wrap:wrap; }
+  .tool { font-size:11px; background:#f3eefa; color:#8358b3; padding:3px 10px; border-radius:8px;
+          font-weight:500; }
+
+  /* ---- Tool call cards ----------------------------------------------- */
+  .toolcard { margin:9px 0; border:1px solid var(--line); border-radius:12px;
+              background:var(--paper2); overflow:hidden; box-shadow:var(--shadow); }
+  .toolcard.err { border-color:#e9c4bb; background:#fdf1ee; }
+  .tc-head { display:flex; align-items:center; gap:9px; padding:9px 12px; cursor:pointer;
+             user-select:none; transition:background .12s; }
+  .tc-head:hover { background:rgba(0,0,0,.025); }
+  .tc-ic { width:21px; height:21px; border-radius:7px; flex-shrink:0; display:flex;
+           align-items:center; justify-content:center; font-size:12px;
+           background:#ece3f6; color:#7b53ad; }
+  .tc-ic.bash { background:#2b2724; color:#7ee0a0; font-family:ui-monospace,monospace; }
+  .tc-ic.file { background:var(--blue-soft); color:var(--blue); }
+  .tc-ic.search { background:#fff3d6; color:#a9791b; }
+  .tc-ic.err { background:#f6d8d0; color:var(--clay-d); }
+  .tc-name { font-size:11px; font-weight:700; color:var(--ink); text-transform:none;
+             flex-shrink:0; }
+  .tc-headline { font-size:12.5px; color:var(--muted); font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+                 overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; min-width:0; }
+  .tc-badge { font-size:10px; padding:2px 7px; border-radius:20px; background:#f6d8d0;
+              color:var(--clay-d); font-weight:700; flex-shrink:0; }
+  .tc-chev { font-size:10px; color:var(--muted); transition:transform .18s; flex-shrink:0; }
+  .tc-head.open .tc-chev { transform:rotate(90deg); }
+  .tc-body { display:none; border-top:1px solid var(--line); }
+  .tc-body.open { display:block; }
+  .tc-section { padding:4px 0; }
+  .tc-label { font-size:10px; text-transform:uppercase; letter-spacing:.7px; font-weight:700;
+              color:var(--muted); padding:9px 12px 4px; }
+  .tc-pre { margin:0; padding:10px 13px; background:var(--ink); color:#e8e2d6;
+            font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace; white-space:pre-wrap;
+            word-break:break-word; max-height:340px; overflow:auto; }
+  .tc-pre.in { background:#23201d; color:#7ee0a0; }
+  .tc-pre.out { background:#1f1d1b; color:#d7d0c4; }
+  .tc-trunc { padding:6px 13px; font-size:11px; color:var(--clay-d); background:#fdf6f2; }
+
+  /* ---- Sub-agent leaves ---------------------------------------------- */
+  .branches { margin:12px 0 4px 14px; padding-left:22px;
+              border-left:2px dashed var(--leaf); }
+  .branch { margin:10px 0; }
+  .leaf-head { display:flex; align-items:center; gap:9px; cursor:pointer;
+               background:var(--leaf-soft); border:1px solid #d9e6c9; border-radius:12px;
+               padding:9px 13px; position:relative; transition:all .12s; box-shadow:var(--shadow); }
+  .leaf-head:hover { transform:translateY(-1px); box-shadow:var(--shadow-lg); }
+  .leaf-head::before { content:""; position:absolute; left:-23px; top:50%; width:21px; height:2px;
+                       background:var(--leaf); }
+  .leaf-ic { font-size:15px; }
+  .leaf-title { font-weight:600; font-size:13px; color:#4f7a3a; flex:1; }
+  .leaf-type { font-size:10.5px; background:#fff; color:#6b8f4e; padding:2px 8px;
+               border-radius:20px; border:1px solid #d9e6c9; font-weight:600; }
+  .leaf-count { font-size:11px; color:var(--muted); }
+  .chev { transition:transform .18s; font-size:11px; color:#6b8f4e; }
+  .leaf-head.open .chev { transform:rotate(90deg); }
+  .leaf-body { margin:8px 0 4px 6px; padding:6px 0 6px 16px; border-left:2px solid #e3ecd6;
+               display:none; }
+  .leaf-body.open { display:block; }
+  .leaf-body .msg { margin-bottom:13px; }
+  .leaf-body .bubble { font-size:13px; padding:11px 14px; }
+
+  .empty,.spinner { color:var(--muted); padding:50px; text-align:center; }
+  mark { background:#ffe2b8; color:#7a4a12; border-radius:3px; padding:0 2px; }
+
+  .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(8px);
+           background:var(--ink); color:#fff; border-radius:14px; padding:13px 20px; font-size:13px;
+           box-shadow:var(--shadow-lg); max-width:640px; opacity:0; transition:all .22s;
+           pointer-events:none; z-index:50; }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+  .toast code { background:rgba(255,255,255,.16); padding:2px 7px; border-radius:5px; color:#ffd9c4; }
+
+  ::-webkit-scrollbar { width:11px; height:11px; }
+  ::-webkit-scrollbar-thumb { background:#e0d6c6; border-radius:8px; border:3px solid transparent;
+                              background-clip:content-box; }
+  ::-webkit-scrollbar-thumb:hover { background:#d0c4b0; background-clip:content-box; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="sidebar">
+    <div class="head">
+      <div class="brand"><div class="logo"></div><h1>Claude Sessions</h1></div>
+      <div class="sub" id="sub">loading…</div>
+    </div>
+    <div class="controls">
+      <div class="searchwrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+        <input id="search" placeholder="Search conversations…  (⌘K)" autocomplete="off">
+      </div>
+      <div class="row">
+        <select id="project"><option value="">All projects</option></select>
+        <select id="sort">
+          <option value="updated">Latest activity</option>
+          <option value="created">Oldest first</option>
+          <option value="msgs">Most messages</option>
+          <option value="sub">Most sub-agents</option>
+          <option value="title">Title A–Z</option>
+        </select>
+      </div>
+    </div>
+    <div class="count" id="count"></div>
+    <div class="list" id="list"></div>
+  </div>
+  <div class="detail" id="detail">
+    <div class="welcome">
+      <div class="big"></div>
+      <h2>Your Claude conversations</h2>
+      <div>Pick a session on the left to read it,<br>see the sub-agents it spawned, and resume where you left off.</div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+let SESSIONS = [];
+let CURRENT = null;
+const $ = id => document.getElementById(id);
+
+function fmtDate(iso){
+  if(!iso) return "—";
+  const d=new Date(iso); if(isNaN(d)) return "—";
+  return d.toLocaleString(undefined,{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});
+}
+function relTime(iso){
+  if(!iso) return "";
+  const d=new Date(iso), s=(new Date()-d)/1000;
+  if(s<60) return "just now";
+  if(s<3600) return Math.floor(s/60)+"m ago";
+  if(s<86400) return Math.floor(s/3600)+"h ago";
+  if(s<2592000) return Math.floor(s/86400)+"d ago";
+  return fmtDate(iso);
+}
+function esc(s){ return (s||"").replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+function hl(s,q){
+  s=esc(s); if(!q) return s;
+  const terms=q.trim().split(/\s+/).filter(Boolean).map(t=>t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'));
+  if(!terms.length) return s;
+  return s.replace(new RegExp('('+terms.join('|')+')','gi'),'<mark>$1</mark>');
+}
+function shortPath(p){
+  if(!p) return "(unknown)";
+  const home=p.replace(/^\/Users\/[^/]+/,"~"), parts=home.split("/");
+  return parts.length>3 ? "…/"+parts.slice(-2).join("/") : home;
+}
+
+async function loadSessions(refresh){
+  $("sub").textContent = refresh ? "rebuilding…" : "loading…";
+  const data=await window.csb.listSessions(!!refresh);
+  SESSIONS=data.sessions;
+  const ps=$("project"), cur=ps.value;
+  ps.innerHTML='<option value="">All projects ('+SESSIONS.length+')</option>'+
+    data.projects.map(p=>`<option value="${esc(p.cwd)}">${esc(shortPath(p.cwd))} (${p.count})</option>`).join("");
+  ps.value=cur;
+  const subs=SESSIONS.reduce((a,s)=>a+(s.sub_count||0),0);
+  $("sub").innerHTML=SESSIONS.length+" sessions · "+subs+" sub-agents · <a href='#' id='refresh'>refresh</a>";
+  $("refresh").onclick=e=>{e.preventDefault();loadSessions(true);};
+  render();
+}
+
+function filtered(){
+  const q=$("search").value.trim().toLowerCase(), proj=$("project").value, sort=$("sort").value;
+  let list=SESSIONS.filter(s=>{
+    if(proj && s.cwd!==proj) return false;
+    if(!q) return true;
+    const hay=(s.title+" "+s.summary+" "+s.first_prompt+" "+s.cwd+" "+(s.git_branch||"")).toLowerCase();
+    return q.split(/\s+/).every(t=>hay.includes(t));
+  });
+  list.sort((a,b)=>{
+    if(sort==="updated") return (b.mtime||0)-(a.mtime||0);
+    if(sort==="created") return (a.created||"").localeCompare(b.created||"");
+    if(sort==="msgs") return (b.user_msgs+b.assistant_msgs)-(a.user_msgs+a.assistant_msgs);
+    if(sort==="sub") return (b.sub_count||0)-(a.sub_count||0);
+    if(sort==="title") return a.title.localeCompare(b.title);
+    return 0;
+  });
+  return list;
+}
+
+function render(){
+  const q=$("search").value.trim(), list=filtered();
+  $("count").textContent=list.length+" shown";
+  $("list").innerHTML=list.map(s=>`
+    <div class="item ${CURRENT===s.id?'active':''}" data-id="${s.id}">
+      <div class="t">${hl(s.title,q)}</div>
+      ${s.summary?`<div class="s">${hl(s.summary,q)}</div>`:''}
+      <div class="meta">
+        <span class="pill time">${relTime(s.updated)}</span>
+        <span class="pill">${s.user_msgs+s.assistant_msgs} msgs</span>
+        ${s.sub_count?`<span class="pill sub">🌿 ${s.sub_count} sub-agent${s.sub_count>1?'s':''}</span>`:''}
+        ${s.git_branch?`<span class="pill branch">⎇ ${esc(s.git_branch)}</span>`:''}
+        <span class="pill path" title="${esc(s.cwd)}">${esc(shortPath(s.cwd))}</span>
+      </div>
+    </div>`).join("") || '<div class="empty">No conversations match.</div>';
+  [...document.querySelectorAll(".item")].forEach(el=>el.onclick=()=>openSession(el.dataset.id));
+}
+
+// pick an icon + style for a tool card based on its name
+function toolStyle(name){
+  const n=(name||"").toLowerCase();
+  if(n==="bash") return {cls:"bash", ic:"&gt;_"};
+  if(["read","edit","write","notebookedit"].includes(n)) return {cls:"file", ic:"📄"};
+  if(["grep","glob","toolsearch","websearch","webfetch"].includes(n)) return {cls:"search", ic:"🔎"};
+  if(["task","agent"].includes(n)) return {cls:"", ic:"🌿"};
+  return {cls:"", ic:"⚙"};
+}
+
+function renderTool(b, q){
+  const st=toolStyle(b.name);
+  const hasIn=b.input && b.input.trim().length;
+  const hasOut=b.output && b.output.trim().length;
+  const errCls=b.is_error?" err":"";
+  const icCls=b.is_error?"err":st.cls;
+  const ic=b.is_error?"⚠":st.ic;
+  const inSec=hasIn?`
+      <div class="tc-section">
+        <div class="tc-label">${b.name.toLowerCase()==="bash"?"command":"input"}</div>
+        <pre class="tc-pre in">${hl(b.input,q)}</pre>
+        ${b.input_truncated?'<div class="tc-trunc">… input truncated</div>':''}
+      </div>`:'';
+  const outSec=hasOut?`
+      <div class="tc-section">
+        <div class="tc-label">${b.is_error?"error output":"output"}</div>
+        <pre class="tc-pre out">${hl(b.output,q)}</pre>
+        ${b.output_truncated?'<div class="tc-trunc">… output truncated (open the session file for the full text)</div>':''}
+      </div>`:'';
+  // sub-agent Task cards get their branch rendered instead of raw input/output
+  const subBranch=b.subagent?renderSubagents([b.subagent],q):'';
+  const inner=subBranch||(inSec+outSec);
+  const hasBody=inner.trim().length>0;
+  const openCls=b.subagent?' open':'';  // expand sub-agent spawns by default
+  const body=hasBody?`<div class="tc-body${openCls}">${inner}</div>`:'';
+  return `<div class="toolcard${errCls}">
+    <div class="tc-head${openCls}" onclick="this.classList.toggle('open');var b=this.nextElementSibling; if(b) b.classList.toggle('open')">
+      <span class="tc-ic ${icCls}">${ic}</span>
+      <span class="tc-name">${esc(b.name)}</span>
+      <span class="tc-headline">${hl(b.headline||'',q)}</span>
+      ${b.is_error?'<span class="tc-badge">error</span>':''}
+      ${hasBody?'<span class="tc-chev">▶</span>':''}
+    </div>${body}
+  </div>`;
+}
+
+function renderBlocks(blocks, q){
+  if(!blocks) return "";
+  return blocks.map(b=>{
+    if(b.kind==="text") return `<div class="bubble">${hl(b.text,q)}</div>`;
+    if(b.kind==="tool") return renderTool(b,q);
+    return "";
+  }).join("");
+}
+
+function renderMsg(m, q){
+  return `<div class="msg ${m.role}">
+    <div class="who"><span class="av"></span>${m.role}</div>
+    ${renderBlocks(m.blocks,q)}
+  </div>`;
+}
+
+function renderSubagents(subs, q){
+  if(!subs || !subs.length) return "";
+  return `<div class="branches">`+subs.map(a=>{
+    const body=(a.messages&&a.messages.length)
+      ? a.messages.map(m=>renderMsg(m,q)).join("")
+      : '<div class="empty">No messages.</div>';
+    return `<div class="branch">
+      <div class="leaf-head" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')">
+        <span class="chev">▶</span><span class="leaf-ic">🌿</span>
+        <span class="leaf-title">${hl(a.description,q)}</span>
+        <span class="leaf-type">${esc(a.agent_type)}</span>
+        <span class="leaf-count">${a.msg_count} msgs</span>
+      </div>
+      <div class="leaf-body">${body}</div>
+    </div>`;
+  }).join("")+`</div>`;
+}
+
+async function openSession(id){
+  CURRENT=id; render();
+  $("detail").innerHTML='<div class="spinner">Loading transcript…</div>';
+  const data=await window.csb.loadSession(id);
+  if(data.error){ $("detail").innerHTML='<div class="empty">'+esc(data.error)+'</div>'; return; }
+  const s=data.session, q=$("search").value.trim();
+  const subTotal=data.subagent_count||0;
+
+  const thread=data.messages.map(m=>renderMsg(m,q)).join("");
+
+  const orphans = data.orphan_subagents && data.orphan_subagents.length
+    ? `<div class="msg"><div class="who" style="color:var(--leaf)"><span class="av" style="background:var(--leaf)"></span>other sub-agents</div>${renderSubagents(data.orphan_subagents,q)}</div>`
+    : "";
+
+  $("detail").innerHTML=`
+    <div class="dhead">
+      <div style="min-width:0">
+        <h2>${esc(s.title)}</h2>
+        <div class="dmeta">
+          <span>${esc(shortPath(s.cwd))}</span><span class="dot">•</span>
+          ${s.git_branch?`<span>⎇ ${esc(s.git_branch)}</span><span class="dot">•</span>`:''}
+          <span>${data.messages.length} messages</span>
+          ${subTotal?`<span class="dot">•</span><span>🌿 ${subTotal} sub-agent${subTotal>1?'s':''}</span>`:''}
+          <span class="dot">•</span><span>${fmtDate(s.created)} → ${fmtDate(s.updated)}</span>
+        </div>
+      </div>
+      <div class="btns">
+        <button class="primary" id="resume-btn">▶ Resume</button>
+        <button id="copy-btn">Copy cmd</button>
+      </div>
+    </div>
+    <div class="transcript"><div class="thread">${thread||'<div class="empty">No displayable messages.</div>'}${orphans}</div></div>`;
+
+  $("resume-btn").onclick=()=>resume(s.id);
+  $("copy-btn").onclick=()=>{
+    const cmd=`cd ${s.cwd} && claude --resume ${s.id}`;
+    navigator.clipboard.writeText(cmd); toast('Copied: <code>'+esc(cmd)+'</code>');
+  };
+}
+
+async function resume(id){
+  toast("Launching Terminal…");
+  const data=await window.csb.resume(id);
+  if(data.ok) toast('Resumed in Terminal: <code>'+esc(data.cmd)+'</code>');
+  else toast('Run manually: <code>'+esc(data.cmd||'')+'</code> '+(data.error?('('+esc(data.error)+')'):''));
+}
+
+let toastTimer;
+function toast(html){
+  const t=$("toast"); t.innerHTML=html; t.classList.add("show");
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove("show"),5000);
+}
+
+$("search").addEventListener("input",render);
+$("project").addEventListener("change",render);
+$("sort").addEventListener("change",render);
+document.addEventListener("keydown",e=>{ if((e.metaKey||e.ctrlKey)&&e.key==="k"){e.preventDefault();$("search").focus();}});
+loadSessions(false);
+</script>
+</body>
+</html>

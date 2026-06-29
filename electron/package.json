@@ -1,0 +1,42 @@
+{
+  "name": "claude-session-browser",
+  "productName": "Claude Sessions",
+  "version": "1.0.0",
+  "description": "Browse, search, and resume your Claude Code conversations.",
+  "main": "main.js",
+  "author": "Shivam Tiwari",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --mac dir",
+    "pack": "electron-builder --mac"
+  },
+  "build": {
+    "appId": "dev.local.claude-session-browser",
+    "productName": "Claude Sessions",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "parser.js",
+      "preload.js",
+      "index.html",
+      "icon.png"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": [
+        {
+          "target": "dir",
+          "arch": ["arm64"]
+        }
+      ],
+      "icon": "icon.icns"
+    }
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  }
+}

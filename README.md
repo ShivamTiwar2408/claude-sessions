@@ -71,6 +71,94 @@ Then drag `Claude Sessions.app` to `/Applications`.
 Resume currently auto-launches a terminal on macOS only; other platforms show the
 command to copy. Contributions welcome.
 
+## Developer guide
+
+### Architecture
+
+Claude Sessions is a single Electron application split across Electron's two
+process types. There is **no HTTP server and no separate backend** — the UI
+talks to the data layer over Electron's built-in **IPC** (inter-process
+communication) channel.
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                      Claude Sessions (one app)                            │
+│                                                                           │
+│   ┌──────────────────────────┐         ┌──────────────────────────────┐  │
+│   │   Renderer process        │        │   Main process                │  │
+│   │   (Chromium window)       │        │   (Node.js runtime)           │  │
+│   │                           │        │                               │  │
+│   │   index.html  ── UI ──┐   │        │   ┌────────────────────────┐  │  │
+│   │                       │   │        │   │ main.js                │  │  │
+│   │   window.csb.*  calls │   │        │   │  • ipcMain.handle(...) │  │  │
+│   │        │              │   │        │   │  • window lifecycle    │  │  │
+│   │        ▼              │   │        │   │  • resume (osascript)  │  │  │
+│   │   ┌──────────────┐    │   │        │   └───────────┬────────────┘  │  │
+│   │   │  preload.js  │    │   │        │               │ calls         │  │
+│   │   │ contextBridge│    │   │        │               ▼               │  │
+│   │   └──────┬───────┘    │   │        │   ┌────────────────────────┐  │  │
+│   │          │            │   │        │   │ parser.js (pure Node)  │  │  │
+│   └──────────┼────────────┘   │        │   │  • buildIndex()        │  │  │
+│              │                │        │   │  • loadTranscript()    │  │  │
+│              │   ipcRenderer  │ IPC    │   │  • parseSubagents()    │  │  │
+│              └────.invoke()───┼───────►│   └───────────┬────────────┘  │  │
+│                               │ channel│               │ fs.readFile   │  │
+│              ◄────Promise─────┼────────│               ▼               │  │
+│                  (JS object)  │        │      ~/.claude/projects/*.jsonl│  │
+│                               │        │                               │  │
+│   └───────────────────────────┘        └──────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────┘
+                                                          │  resume only
+                                                          ▼
+                                              Terminal.app → claude --resume
+```
+
+### Communication between processes
+
+The renderer is sandboxed (`contextIsolation: true`, `nodeIntegration: false`),
+so it cannot touch the filesystem or Node APIs directly. All communication flows
+through one secure channel:
+
+| Layer | Technology | Role |
+|-------|-----------|------|
+| Renderer → bridge | **`contextBridge`** (`preload.js`) | Exposes a minimal, safe `window.csb` API to page JS — no Node leaks into the DOM |
+| Bridge → Main | **`ipcRenderer.invoke()`** | Sends an async request over Electron's IPC channel and awaits a `Promise` |
+| Main (listener) | **`ipcMain.handle()`** | Receives the request, runs the work, returns a plain JS object (auto-serialized back to the renderer) |
+| Data | **Node `fs`** (`parser.js`) | Reads and parses `~/.claude/projects/*.jsonl` synchronously in-process |
+| Resume | **`child_process.execFile`** → `osascript` | Launches Terminal.app and runs `claude --resume <id>` |
+
+There are exactly three IPC routes:
+
+| `window.csb` method | IPC channel | Main-process handler |
+|---------------------|-------------|----------------------|
+| `listSessions(refresh)` | `csb:list` | `parser.listSessions()` — builds/returns the session index |
+| `loadSession(id)` | `csb:session` | `parser.loadTranscript()` — full transcript + sub-agents |
+| `resume(id)` | `csb:resume` | launches the terminal via AppleScript |
+
+Because the call returns a structured JS object directly over IPC (no JSON-over-
+HTTP, no port, no serialization round-trip you manage yourself), a transcript
+load typically completes in a few milliseconds.
+
+### Source layout
+
+| File | Process | Responsibility |
+|------|---------|----------------|
+| `electron/main.js` | Main | App lifecycle, window creation, IPC handlers, resume |
+| `electron/parser.js` | Main | All file reading + parsing (index, transcripts, tool cards, sub-agent linking). Zero dependencies. |
+| `electron/preload.js` | Bridge | `contextBridge` exposing `window.csb` |
+| `electron/index.html` | Renderer | The full UI (markup, styles, render logic) |
+| `electron/package.json` | — | Electron + electron-builder config |
+
+### Data model notes
+
+- A **session** is one `~/.claude/projects/<encoded-cwd>/<id>.jsonl` file.
+- Each line is a JSON record; titles come from Claude Code's own `ai-title`
+  records, summaries from `last-prompt`.
+- **Sub-agents** live in `<id>/subagents/agent-*.jsonl` with a `.meta.json`
+  sidecar whose `toolUseId` links each sub-agent back to the exact `Task`
+  tool-call in the parent transcript — that linkage is what renders them as
+  inline leaf-branches.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

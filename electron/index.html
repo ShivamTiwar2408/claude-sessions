@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Claude Sessions</title>
+<title>Claude Code</title>
 <style>
   /* ---- Soft / warm "paper" modern UI ---------------------------------- */
   :root {
@@ -42,9 +42,14 @@
           background:#fff; border-radius:2px; }
   .logo::before { width:3px; height:16px; }
   .logo::after { width:16px; height:3px; }
-  .head h1 { margin:0; font-size:19px; font-weight:600; letter-spacing:.2px; }
+  .head h1 { margin:0; font-size:19px; font-weight:600; letter-spacing:.2px; flex:1; }
   .head .sub { color:var(--muted); font-size:12.5px; margin-top:3px; }
   .head .sub a { color:var(--clay-d); text-decoration:none; font-weight:600; }
+  .new-btn { flex-shrink:0; padding:6px 12px; font-size:12.5px; border-radius:10px;
+             background:linear-gradient(180deg, var(--clay), var(--clay-d)); color:#fff;
+             border:none; font-weight:700; cursor:pointer; -webkit-app-region:no-drag;
+             box-shadow:var(--shadow); transition:transform .12s, box-shadow .12s; }
+  .new-btn:hover { transform:translateY(-1px); box-shadow:var(--shadow-lg); }
 
   .controls { padding:6px 16px 14px; display:flex; flex-direction:column; gap:9px;
               -webkit-app-region:no-drag; }
@@ -109,6 +114,10 @@
   .welcome .big::before,.welcome .big::after{content:"";position:absolute;inset:0;margin:auto;background:#fff;border-radius:3px;}
   .welcome .big::before{width:5px;height:34px;} .welcome .big::after{width:34px;height:5px;}
   .welcome h2 { margin:6px 0 0; color:var(--ink); font-size:22px; }
+  .welcome-cta { margin-top:10px; padding:11px 20px; font-size:14px; }
+  .welcome-hint { margin-top:4px; font-size:12px; color:var(--muted); }
+  .welcome-hint kbd { background:var(--paper2); border:1px solid var(--line2); border-radius:5px;
+                      padding:1px 6px; font:11px ui-monospace,Menlo,monospace; color:var(--ink); }
 
   .dhead { padding:26px 30px 18px; -webkit-app-region:drag;
            border-bottom:1px solid var(--line); display:flex; gap:18px;
@@ -125,12 +134,44 @@
   button.primary { background:linear-gradient(180deg, var(--clay), var(--clay-d));
                    border-color:var(--clay-d); color:#fff; }
 
-  .transcript { overflow-y:auto; flex:1; padding:26px 30px 30px; min-height:0; }
+  /* context / capability bar */
+  .ctxbar { display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+            padding:9px 30px; border-bottom:1px solid var(--line);
+            background:var(--paper2); }
+  .cx-usage { display:flex; align-items:center; gap:9px; }
+  .cx-label { font-size:11px; text-transform:uppercase; letter-spacing:.6px;
+              font-weight:700; color:var(--muted); }
+  .cx-track { width:160px; height:7px; background:#e6ddcd; border-radius:6px; overflow:hidden; }
+  .cx-fill { display:block; height:100%; border-radius:6px; background:var(--green); transition:width .3s; }
+  .cx-fill.warm { background:#d9a23f; } .cx-fill.hot { background:var(--clay-d); }
+  .cx-num { font-size:11.5px; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .cx-chips { display:flex; gap:6px; flex-wrap:wrap; }
+  .cx-chip { font-size:11px; background:var(--card); border:1px solid var(--line);
+             color:var(--muted); padding:3px 9px; border-radius:20px; white-space:nowrap; }
+  .cx-chip.model { color:var(--clay-d); font-weight:600; font-family:ui-monospace,Menlo,monospace; }
+
+  .transcript { overflow-y:auto; flex:1; padding:26px 30px 30px; min-height:0; position:relative; }
+  /* jump-to-latest floating button */
+  .jump-btn { position:sticky; bottom:14px; left:100%; float:right; margin-right:6px;
+              transform:translateY(8px); opacity:0; pointer-events:none;
+              background:var(--ink); color:#fff; border:none; border-radius:20px;
+              padding:8px 14px; font-size:12.5px; font-weight:600; box-shadow:var(--shadow-lg);
+              transition:opacity .18s, transform .18s; z-index:5; }
+  .jump-btn.show { opacity:1; transform:translateY(0); pointer-events:auto; }
+  .jump-btn:hover { transform:translateY(-1px); }
   .thread { max-width:860px; margin:0 auto; }
 
   /* chat composer (footer) */
   .composer { border-top:1px solid var(--line); background:rgba(255,255,255,.7);
               backdrop-filter:blur(8px); padding:12px 30px 14px; flex-shrink:0; }
+  .composer-opts { max-width:860px; margin:0 auto 8px; display:flex; gap:14px; flex-wrap:wrap; }
+  .opt { display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--muted); }
+  .opt span { text-transform:uppercase; letter-spacing:.5px; font-weight:700; }
+  .opt select { width:auto; min-width:130px; max-width:230px; padding:5px 9px; font-size:12px;
+                border-radius:9px; }
+  .turn-tag { font-size:10px; font-weight:600; background:var(--paper2); color:var(--muted);
+              padding:1px 7px; border-radius:20px; margin-left:6px; text-transform:none;
+              letter-spacing:0; }
   .composer-inner { max-width:860px; margin:0 auto; display:flex; gap:9px; align-items:flex-end; }
   #chat-input { flex:1; resize:none; border:1px solid var(--line2); border-radius:14px;
                 padding:11px 14px; font-size:14px; font-family:inherit; line-height:1.5;
@@ -278,7 +319,7 @@
 <div class="app">
   <div class="sidebar">
     <div class="head">
-      <div class="brand"><div class="logo"></div><h1>Claude Sessions</h1></div>
+      <div class="brand"><div class="logo"></div><h1>Claude Code</h1><button class="new-btn" id="new-btn" title="Start a new conversation">+ New</button></div>
       <div class="sub" id="sub">loading…</div>
     </div>
     <div class="controls">
@@ -309,8 +350,10 @@
   <div class="detail" id="detail">
     <div class="welcome">
       <div class="big"></div>
-      <h2>Your Claude conversations</h2>
-      <div>Pick a session on the left to read it,<br>see the sub-agents it spawned, and resume where you left off.</div>
+      <h2>Your Claude Code conversations</h2>
+      <div>Pick a conversation on the left to read it, see the sub-agents<br>it spawned, and continue chatting — or start a fresh one.</div>
+      <button class="primary welcome-cta" id="welcome-new">+ New conversation</button>
+      <div class="welcome-hint">Tip: press <kbd>⌘K</kbd> to search &nbsp;·&nbsp; <kbd>⌘N</kbd> for a new chat</div>
     </div>
   </div>
 </div>
@@ -687,8 +730,27 @@ async function openSession(id){
         <button id="copy-btn">Copy cmd</button>
       </div>
     </div>
-    <div class="transcript"><div class="thread" id="thread">${thread||'<div class="empty">No displayable messages.</div>'}${orphans}<div id="live"></div></div></div>
+    ${renderContextBar(data.meta)}
+    <div class="transcript" id="transcript"><div class="thread" id="thread">${thread||'<div class="empty">No displayable messages.</div>'}${orphans}<div id="live"></div></div>
+      <button class="jump-btn" id="jump-btn" title="Jump to latest message">↓ Latest</button>
+    </div>
     <div class="composer">
+      <div class="composer-opts">
+        <label class="opt">
+          <span>Model</span>
+          <select id="chat-model">
+            <option value="">Default${data.meta&&data.meta.model?` (${esc(data.meta.model)})`:''}</option>
+            <option value="opus">Opus (most capable)</option>
+            <option value="sonnet">Sonnet (balanced)</option>
+            <option value="haiku">Haiku (fastest)</option>
+            <option value="fable">Fable 5 (frontier)</option>
+          </select>
+        </label>
+        <label class="opt">
+          <span>Agent</span>
+          <select id="chat-agent">${renderAgentOptions(data.meta)}</select>
+        </label>
+      </div>
       <div class="composer-inner">
         <textarea id="chat-input" rows="1" placeholder="Continue this conversation…  (Enter to send, Shift+Enter for newline)"></textarea>
         <button class="primary" id="send-btn" title="Send">➤</button>
@@ -703,6 +765,65 @@ async function openSession(id){
     navigator.clipboard.writeText(cmd); toast('Copied: <code>'+esc(cmd)+'</code>');
   };
   setupComposer(s.id);
+  setupJump();
+}
+
+// ---- context bar + jump-to-latest ---------------------------------------
+const CTX_WINDOW=1000000; // Claude context window (1M) for the usage %
+function fmtTokens(n){
+  if(n>=1e6) return (n/1e6).toFixed(2)+"M";
+  if(n>=1e3) return Math.round(n/1e3)+"K";
+  return ""+n;
+}
+function renderContextBar(meta){
+  if(!meta) return "";
+  const c=meta.context;
+  const chips=[];
+  if(meta.model) chips.push(`<span class="cx-chip model">${esc(meta.model)}</span>`);
+  if(meta.tools) chips.push(`<span class="cx-chip" title="Tools available in this session">🛠 ${meta.tools} tools</span>`);
+  if(meta.mcp) chips.push(`<span class="cx-chip" title="MCP servers loaded">🔌 ${meta.mcp} MCP</span>`);
+  if(meta.agents) chips.push(`<span class="cx-chip" title="Sub-agent types available">🤖 ${meta.agents} agents</span>`);
+  if(meta.skills) chips.push(`<span class="cx-chip" title="Skills loaded">✨ ${meta.skills} skills</span>`);
+
+  let usage="";
+  if(c && c.context_tokens){
+    const pct=Math.min(100, (c.context_tokens/CTX_WINDOW)*100);
+    const lvl = pct>85?"hot":pct>60?"warm":"ok";
+    usage=`
+      <div class="cx-usage" title="Context used on the latest turn: ${c.context_tokens.toLocaleString()} of ${CTX_WINDOW.toLocaleString()} tokens">
+        <span class="cx-label">context</span>
+        <span class="cx-track"><span class="cx-fill ${lvl}" style="width:${pct.toFixed(1)}%"></span></span>
+        <span class="cx-num">${fmtTokens(c.context_tokens)} / ${fmtTokens(CTX_WINDOW)} · ${pct<1?'<1':pct.toFixed(0)}%</span>
+      </div>`;
+  }
+  if(!usage && !chips.length) return "";
+  return `<div class="ctxbar">${usage}<div class="cx-chips">${chips.join("")}</div></div>`;
+}
+
+// Pretty short label for an agent type id (strip the plugin namespace prefix).
+function agentLabel(name){
+  const short = name.includes(":") ? name.split(":").pop() : name;
+  return short;
+}
+function renderAgentOptions(meta){
+  let opts=`<option value="">Default agent</option>`;
+  const names=(meta && meta.agent_names) || [];
+  if(names.length){
+    opts+=names.map(n=>`<option value="${esc(n)}" title="${esc(n)}">${esc(agentLabel(n))}</option>`).join("");
+  }
+  return opts;
+}
+
+function setupJump(){
+  const tr=$("transcript"), btn=$("jump-btn");
+  if(!tr||!btn) return;
+  const atBottom=()=> tr.scrollHeight - tr.scrollTop - tr.clientHeight < 120;
+  const update=()=>{ btn.classList.toggle("show", !atBottom()); };
+  tr.addEventListener("scroll",update);
+  btn.onclick=()=>{ tr.scrollTo({top:tr.scrollHeight, behavior:"smooth"}); };
+  // jump to latest on open, then evaluate button visibility
+  tr.scrollTop=tr.scrollHeight;
+  setTimeout(update,60);
 }
 
 async function resume(id){
@@ -710,6 +831,130 @@ async function resume(id){
   const data=await window.csb.resume(id);
   if(data.ok) toast('Resumed in Terminal: <code>'+esc(data.cmd)+'</code>');
   else toast('Run manually: <code>'+esc(data.cmd||'')+'</code> '+(data.error?('('+esc(data.error)+')'):''));
+}
+
+// ---- new conversation ----------------------------------------------------
+function openNewChat(){
+  CURRENT=null; render();
+  const newId = crypto.randomUUID();
+  $("detail").innerHTML=`
+    <div class="dhead">
+      <div style="min-width:0">
+        <h2>New conversation</h2>
+        <div class="dmeta"><span>Working directory: ~ (your home folder)</span></div>
+      </div>
+    </div>
+    <div class="transcript" id="transcript"><div class="thread" id="thread"><div class="empty" style="padding-top:80px">
+      <p style="font-size:16px;margin-bottom:8px">Start a new conversation</p>
+      <p style="color:var(--muted);font-size:13px">Type your message below. Claude will stream a response,<br>and this session will be saved to your history.</p>
+    </div><div id="live"></div></div>
+      <button class="jump-btn" id="jump-btn" title="Jump to latest message">↓ Latest</button>
+    </div>
+    <div class="composer">
+      <div class="composer-opts">
+        <label class="opt">
+          <span>Model</span>
+          <select id="chat-model">
+            <option value="">Default (opus)</option>
+            <option value="opus">Opus</option>
+            <option value="sonnet">Sonnet</option>
+            <option value="haiku">Haiku</option>
+            <option value="fable">Fable 5</option>
+          </select>
+        </label>
+        <label class="opt">
+          <span>Agent</span>
+          <select id="chat-agent"><option value="">Default agent</option></select>
+        </label>
+      </div>
+      <div class="composer-inner">
+        <textarea id="chat-input" rows="1" placeholder="What do you want to talk about?  (Enter to send)" autofocus></textarea>
+        <button class="primary" id="send-btn" title="Send">➤</button>
+        <button id="stop-btn" title="Stop" style="display:none">■</button>
+      </div>
+      <div class="composer-hint">This will start a new Claude Code session in your home directory.</div>
+    </div>`;
+  setupNewComposer(newId);
+  setupJump();
+}
+
+function setupNewComposer(newId){
+  const input=$("chat-input"), sendBtn=$("send-btn"), stopBtn=$("stop-btn");
+  if(!input) return;
+  const grow=()=>{ input.style.height="auto"; input.style.height=Math.min(input.scrollHeight,160)+"px"; };
+  input.addEventListener("input",grow);
+  input.addEventListener("keydown",e=>{
+    if(e.key==="Enter" && !e.shiftKey){ e.preventDefault(); sendNewChat(newId); }
+  });
+  sendBtn.onclick=()=>sendNewChat(newId);
+  stopBtn.onclick=()=>stopChat();
+  setTimeout(()=>input.focus(),50);
+}
+
+let NEW_STARTED=false;
+function sendNewChat(sessionId){
+  if(CHAT_BUSY) return;
+  if(NEW_STARTED){
+    // after first message, behave like a resume chat
+    sendChat(sessionId);
+    return;
+  }
+  NEW_STARTED=true;
+  // override sendChat to use newSession flag on the first turn
+  const input=$("chat-input");
+  const msg=(input.value||"").trim();
+  if(!msg){ NEW_STARTED=false; return; }
+  input.value=""; input.style.height="auto";
+
+  const model=($("chat-model")&&$("chat-model").value)||"";
+  const agent=($("chat-agent")&&$("chat-agent").value)||"";
+
+  const live=$("live");
+  live.insertAdjacentHTML("beforeend",
+    `<div class="msg user"><div class="who"><span class="av"></span>you</div><div class="bubble md">${mdBubble(msg,"")}</div></div>`);
+  const turn="t"+Date.now();
+  CHAT_TURN=turn;
+  live.insertAdjacentHTML("beforeend",
+    `<div class="msg assistant" id="a-${turn}">
+       <div class="who"><span class="av"></span>claude</div>
+       <div class="chat-status" id="st-${turn}"><span class="dots"><i></i><i></i><i></i></span> <span id="stlabel-${turn}">starting new session…</span></div>
+       <div class="bubble md" id="b-${turn}" style="display:none"></div>
+       <div class="chat-tools" id="tools-${turn}"></div>
+     </div>`);
+  scrollThread();
+  setBusy(true);
+  let acc="";
+  const bubble=()=>$("b-"+turn), statusEl=()=>$("st-"+turn);
+  const setLabel=(txt)=>{ const l=$("stlabel-"+turn); if(l) l.textContent=txt; };
+
+  CHAT_UNSUB=window.csb.startChat(turn, sessionId, msg, {model, agent, newSession:true}, (ev)=>{
+    if(!ev) return;
+    if(ev.type==="status"){ setLabel(ev.text==="responding"?"responding…":(ev.text==="thinking"?"thinking…":ev.text)); }
+    else if(ev.type==="tool"){
+      const tl=$("tools-"+turn);
+      if(tl) tl.insertAdjacentHTML("beforeend",`<span class="tool">⚙ ${esc(ev.name)}</span>`);
+      setLabel("using tools…"); scrollThread();
+    }
+    else if(ev.type==="delta"){
+      acc+=ev.text;
+      const b=bubble(), st=statusEl();
+      if(st) st.style.display="none";
+      if(b){ b.style.display="block"; b.innerHTML=mdToHtml(acc); }
+      scrollThread();
+    }
+    else if(ev.type==="error"){
+      const st=statusEl(); if(st) st.innerHTML='<span style="color:var(--clay-d)">⚠ '+esc(ev.error)+'</span>';
+    }
+    else if(ev.type==="done"){
+      const st=statusEl();
+      if(st && !acc) st.innerHTML='<span style="color:var(--muted)">(no response)</span>';
+      else if(st) st.style.display="none";
+      finishChat();
+      // update header to show we're now an active session
+      const h=$("detail"); if(h){ const hdr=h.querySelector(".dmeta"); if(hdr) hdr.innerHTML=`<span>Session: ${sessionId}</span><span class="dot">•</span><span>Refresh the sidebar to see this in your history</span>`; }
+      scrollThread();
+    }
+  });
 }
 
 // ---- in-UI streaming chat ------------------------------------------------
@@ -741,10 +986,17 @@ function sendChat(sessionId){
   if(!msg) return;
   input.value=""; input.style.height="auto";
 
+  // read model/agent overrides from the composer selectors
+  const model=($("chat-model")&&$("chat-model").value)||"";
+  const agent=($("chat-agent")&&$("chat-agent").value)||"";
+  const tags=[];
+  if(model) tags.push(`<span class="turn-tag">⚡ ${esc(model)}</span>`);
+  if(agent) tags.push(`<span class="turn-tag">🤖 ${esc(agentLabel(agent))}</span>`);
+
   const live=$("live");
   // append the user's message bubble
   live.insertAdjacentHTML("beforeend",
-    `<div class="msg user"><div class="who"><span class="av"></span>you</div><div class="bubble md">${mdBubble(msg,"")}</div></div>`);
+    `<div class="msg user"><div class="who"><span class="av"></span>you ${tags.join("")}</div><div class="bubble md">${mdBubble(msg,"")}</div></div>`);
   // append an assistant message shell we'll stream into
   const turn="t"+Date.now();
   CHAT_TURN=turn;
@@ -762,7 +1014,7 @@ function sendChat(sessionId){
   const bubble=()=>$("b-"+turn), statusEl=()=>$("st-"+turn);
   const setLabel=(txt)=>{ const l=$("stlabel-"+turn); if(l) l.textContent=txt; };
 
-  CHAT_UNSUB=window.csb.startChat(turn, sessionId, msg, (ev)=>{
+  CHAT_UNSUB=window.csb.startChat(turn, sessionId, msg, {model, agent}, (ev)=>{
     if(!ev) return;
     if(ev.type==="status"){ setLabel(ev.text==="responding"?"responding…":(ev.text==="thinking"?"thinking…":ev.text)); }
     else if(ev.type==="tool"){
@@ -830,9 +1082,15 @@ $("search").addEventListener("keydown",e=>{
 });
 $("mode-keyword").onclick=()=>setMode("keyword");
 $("mode-ai").onclick=()=>setMode("ai");
+$("new-btn").onclick=()=>{ NEW_STARTED=false; openNewChat(); };
+// welcome-screen CTA (only present on the initial landing view)
+(function(){ const w=$("welcome-new"); if(w) w.onclick=()=>{ NEW_STARTED=false; openNewChat(); }; })();
 $("project").addEventListener("change",render);
 $("sort").addEventListener("change",render);
-document.addEventListener("keydown",e=>{ if((e.metaKey||e.ctrlKey)&&e.key==="k"){e.preventDefault();$("search").focus();}});
+document.addEventListener("keydown",e=>{
+  if((e.metaKey||e.ctrlKey)&&e.key==="k"){e.preventDefault();$("search").focus();}
+  if((e.metaKey||e.ctrlKey)&&e.key==="n"){e.preventDefault();NEW_STARTED=false;openNewChat();}
+});
 loadSessions(false);
 </script>
 </body>

@@ -11,7 +11,9 @@ them locally and gives you a clean, fast UI to find old threads and jump back in
 ## Features
 
 - **Browse every session** across all your projects, sorted by latest activity
-- **Search** titles, summaries, prompts, paths, and git branches (⌘K)
+- **Two search modes** (⌘K to focus):
+  - **🔍 Keyword** — fast, offline full-text search over *every message body* (not just titles). Type naturally — filler words are stripped, so "the chat where I set up react query" matches on the meaningful terms. Searches as you type.
+  - **✨ Ask AI** — describe the conversation in plain English ("where I was looking for my previous CRs and quips") and Claude ranks sessions by *meaning*, understanding synonyms and intent. Each result shows why it matched. **No API key needed** — it reuses your local `claude` CLI (see [AI search](#ai-search)).
 - **Auto-generated titles & summaries** — uses Claude Code's own `ai-title`/`last-prompt`
 - **Full transcript view** with rich, collapsible **tool-call cards** — see the exact
   Bash command, file edits, search queries, and their complete output
@@ -70,6 +72,29 @@ Then drag `Claude Sessions.app` to `/Applications`.
 
 Resume currently auto-launches a terminal on macOS only; other platforms show the
 command to copy. Contributions welcome.
+
+## AI search
+
+Both search modes work out of the box — **no API key required.**
+
+**Ask AI** reuses the `claude` CLI already installed and authenticated on your
+machine (the same one that powers Claude Code). It runs `claude` in headless
+mode (`claude -p`) under the hood, so whatever auth that CLI uses — Bedrock, a
+subscription, an API key — is reused transparently. If `claude` isn't on your
+PATH, Ask AI shows a friendly message and Keyword search still works.
+
+How it works: the app builds a compact catalog of every session (title +
+summary + a short body excerpt) and asks Claude to return the ids matching your
+query's intent as JSON. Only short excerpts are sent — never full transcripts.
+
+### The full-text index
+
+Keyword search is backed by an incremental, on-disk index at
+`~/.claude/.claude-sessions-index.json`. On launch the app compares each session
+file's modification time against the cached entry and **re-reads only what
+changed** — new sessions, edited sessions, and removals. If 4 of 100
+conversations changed since last launch, only those 4 are re-parsed. The index
+stores a searchable text blob per session (capped), so search stays instant.
 
 ## Developer guide
 

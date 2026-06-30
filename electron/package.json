@@ -21,6 +21,9 @@
       "main.js",
       "parser.js",
       "preload.js",
+      "searchindex.js",
+      "aisearch.js",
+      "chat.js",
       "index.html",
       "icon.png"
     ],
@@ -29,7 +32,9 @@
       "target": [
         {
           "target": "dir",
-          "arch": ["arm64"]
+          "arch": [
+            "arm64"
+          ]
         }
       ],
       "icon": "icon.icns"

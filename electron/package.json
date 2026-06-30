@@ -1,6 +1,6 @@
 {
   "name": "claude-session-browser",
-  "productName": "Claude Sessions",
+  "productName": "Claude Code",
   "version": "1.0.0",
   "description": "Browse, search, and resume your Claude Code conversations.",
   "main": "main.js",
@@ -13,7 +13,7 @@
   },
   "build": {
     "appId": "dev.local.claude-session-browser",
-    "productName": "Claude Sessions",
+    "productName": "Claude Code",
     "directories": {
       "output": "dist"
     },

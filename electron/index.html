@@ -48,9 +48,29 @@
 
   .controls { padding:6px 16px 14px; display:flex; flex-direction:column; gap:9px;
               -webkit-app-region:no-drag; }
+  .modetabs { display:flex; gap:6px; background:var(--paper2); padding:4px; border-radius:12px;
+              border:1px solid var(--line); }
+  .modetab { flex:1; padding:7px 10px; border:none; background:transparent; color:var(--muted);
+             font-size:12.5px; font-weight:600; border-radius:9px; box-shadow:none; transition:all .12s; }
+  .modetab:hover { color:var(--ink); transform:none; box-shadow:none; }
+  .modetab.active { background:var(--card); color:var(--clay-d); box-shadow:var(--shadow); }
+  .modetab.active[data-mode="ai"] { color:#8358b3; }
   .searchwrap { position:relative; }
   .searchwrap svg { position:absolute; left:13px; top:50%; transform:translateY(-50%);
                     width:15px; height:15px; opacity:.4; }
+  .searchspin { position:absolute; right:13px; top:50%; transform:translateY(-50%);
+                width:15px; height:15px; border:2px solid var(--line2); border-top-color:var(--clay);
+                border-radius:50%; animation:spin .7s linear infinite; display:none; }
+  .searchspin.on { display:block; }
+  .aihint { display:none; font-size:11.5px; color:var(--muted); line-height:1.45;
+            padding:2px 4px; }
+  .aihint.on { display:block; }
+  .aihint i { color:#8358b3; }
+  body.aimode #search { border-color:#d8c4ec; }
+  body.aimode #search:focus { border-color:#8358b3; box-shadow:0 0 0 3px #f3eefa; }
+  .reason { margin-top:8px; font-size:12px; color:#7a5aa0; background:#f6f0fb;
+            border:1px solid #e7dcf5; border-radius:9px; padding:6px 10px; line-height:1.4; }
+  .reason::before { content:"✨ "; }
   input, select {
     width:100%; padding:11px 13px; background:var(--card); color:var(--ink);
     border:1px solid var(--line2); border-radius:12px; font-size:13.5px; outline:none;
@@ -105,8 +125,34 @@
   button.primary { background:linear-gradient(180deg, var(--clay), var(--clay-d));
                    border-color:var(--clay-d); color:#fff; }
 
-  .transcript { overflow-y:auto; flex:1; padding:26px 30px 60px; min-height:0; }
+  .transcript { overflow-y:auto; flex:1; padding:26px 30px 30px; min-height:0; }
   .thread { max-width:860px; margin:0 auto; }
+
+  /* chat composer (footer) */
+  .composer { border-top:1px solid var(--line); background:rgba(255,255,255,.7);
+              backdrop-filter:blur(8px); padding:12px 30px 14px; flex-shrink:0; }
+  .composer-inner { max-width:860px; margin:0 auto; display:flex; gap:9px; align-items:flex-end; }
+  #chat-input { flex:1; resize:none; border:1px solid var(--line2); border-radius:14px;
+                padding:11px 14px; font-size:14px; font-family:inherit; line-height:1.5;
+                max-height:160px; background:var(--card); }
+  #chat-input:focus { border-color:var(--clay); box-shadow:0 0 0 3px var(--clay-soft); }
+  #send-btn, #stop-btn { width:42px; height:42px; flex-shrink:0; border-radius:12px;
+                         font-size:16px; padding:0; display:flex; align-items:center; justify-content:center; }
+  #stop-btn { background:var(--card); }
+  .composer-hint { max-width:860px; margin:6px auto 0; font-size:11px; color:var(--muted); }
+  .composer-hint code { background:var(--paper2); padding:1px 5px; border-radius:4px; }
+
+  /* streaming status with animated dots */
+  .chat-status { display:flex; align-items:center; gap:8px; color:var(--muted); font-size:13px;
+                 padding:4px 2px; }
+  .dots { display:inline-flex; gap:4px; }
+  .dots i { width:6px; height:6px; border-radius:50%; background:var(--clay);
+            display:inline-block; animation:blink 1.2s infinite both; }
+  .dots i:nth-child(2){ animation-delay:.2s; } .dots i:nth-child(3){ animation-delay:.4s; }
+  @keyframes blink { 0%,80%,100%{ opacity:.25; } 40%{ opacity:1; } }
+  .chat-tools { display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; }
+  .chat-tools .tool { font-size:11px; background:#f3eefa; color:#8358b3; padding:3px 10px;
+                      border-radius:8px; font-weight:500; }
   .msg { margin-bottom:20px; }
   .msg .who { font-size:11px; text-transform:uppercase; letter-spacing:.8px;
               margin-bottom:6px; font-weight:700; display:flex; align-items:center; gap:7px; }
@@ -117,6 +163,40 @@
             padding:14px 17px; white-space:pre-wrap; word-wrap:break-word; box-shadow:var(--shadow);
             font-size:14px; }
   .msg.user .bubble { background:var(--blue-soft); border-color:#dde6f7; }
+
+  /* rendered markdown inside a bubble */
+  .bubble.md { white-space:normal; line-height:1.6; }
+  .bubble.md > :first-child { margin-top:0; }
+  .bubble.md > :last-child { margin-bottom:0; }
+  .bubble.md p { margin:0 0 10px; }
+  .bubble.md h1, .bubble.md h2, .bubble.md h3,
+  .bubble.md h4, .bubble.md h5, .bubble.md h6 {
+    font-family:inherit; font-weight:700; line-height:1.3; margin:16px 0 8px; }
+  .bubble.md h1 { font-size:1.5em; } .bubble.md h2 { font-size:1.3em; }
+  .bubble.md h3 { font-size:1.15em; } .bubble.md h4 { font-size:1.05em; }
+  .bubble.md ul, .bubble.md ol { margin:6px 0 10px; padding-left:24px; }
+  .bubble.md li { margin:3px 0; }
+  .bubble.md li > ul, .bubble.md li > ol { margin:3px 0; }
+  .bubble.md code { background:var(--paper2); border:1px solid var(--line);
+    border-radius:5px; padding:1px 5px; font:0.88em ui-monospace,SFMono-Regular,Menlo,monospace; }
+  .bubble.md pre.md-pre { background:var(--ink); color:#e8e2d6; border-radius:10px;
+    padding:12px 14px; overflow:auto; margin:10px 0; position:relative; }
+  .bubble.md pre.md-pre code { background:none; border:none; padding:0; color:inherit;
+    font-size:12.5px; line-height:1.5; }
+  .bubble.md pre.md-pre[data-lang]::before { content:attr(data-lang);
+    position:absolute; top:6px; right:10px; font-size:10px; color:var(--muted);
+    text-transform:uppercase; letter-spacing:.5px; font-family:inherit; }
+  .bubble.md blockquote { margin:10px 0; padding:4px 14px; border-left:3px solid var(--clay);
+    background:var(--clay-soft); border-radius:0 8px 8px 0; color:#7a5a48; }
+  .bubble.md blockquote p:last-child { margin-bottom:0; }
+  .bubble.md hr { border:none; border-top:1px solid var(--line2); margin:14px 0; }
+  .bubble.md a { color:var(--clay-d); text-decoration:underline; }
+  .bubble.md strong { font-weight:700; } .bubble.md em { font-style:italic; }
+  .bubble.md table.md-table { border-collapse:collapse; margin:10px 0; font-size:13px;
+    display:block; overflow-x:auto; }
+  .bubble.md table.md-table th, .bubble.md table.md-table td {
+    border:1px solid var(--line2); padding:6px 10px; text-align:left; }
+  .bubble.md table.md-table th { background:var(--paper2); font-weight:700; }
   .tools { margin-top:8px; display:flex; gap:6px; flex-wrap:wrap; }
   .tool { font-size:11px; background:#f3eefa; color:#8358b3; padding:3px 10px; border-radius:8px;
           font-weight:500; }
@@ -202,10 +282,16 @@
       <div class="sub" id="sub">loading…</div>
     </div>
     <div class="controls">
+      <div class="modetabs">
+        <button class="modetab active" id="mode-keyword" data-mode="keyword" title="Fast full-text search over every message body">🔍 Keyword</button>
+        <button class="modetab" id="mode-ai" data-mode="ai" title="Ask in plain English — Claude ranks by meaning">✨ Ask AI</button>
+      </div>
       <div class="searchwrap">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
         <input id="search" placeholder="Search conversations…  (⌘K)" autocomplete="off">
+        <span class="searchspin" id="searchspin"></span>
       </div>
+      <div class="aihint" id="aihint">Describe the conversation in plain English, then press <b>Enter</b>. e.g. <i>“where I was looking for my previous CRs and quips”</i></div>
       <div class="row">
         <select id="project"><option value="">All projects</option></select>
         <select id="sort">
@@ -256,6 +342,127 @@ function hl(s,q){
   if(!terms.length) return s;
   return s.replace(new RegExp('('+terms.join('|')+')','gi'),'<mark>$1</mark>');
 }
+
+// Highlight query terms in already-rendered HTML, only in text between tags
+// (never inside <...> attributes/tags), so we don't corrupt the markup.
+function hlHtml(html,q){
+  if(!q) return html;
+  const terms=q.trim().split(/\s+/).filter(Boolean).map(t=>t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'));
+  if(!terms.length) return html;
+  const re=new RegExp('('+terms.join('|')+')','gi');
+  return html.replace(/>([^<]+)</g,(m,text)=>'>'+text.replace(re,'<mark>$1</mark>')+'<');
+}
+
+// Minimal, dependency-free Markdown → HTML renderer for assistant/user text.
+// Handles fenced code, headings, lists (incl. nesting by indent), blockquotes,
+// horizontal rules, tables, inline code/bold/italic/strikethrough/links.
+function mdInline(s){
+  // s is already HTML-escaped here
+  return s
+    // inline code first (protect its contents from other rules)
+    .replace(/`([^`]+)`/g,(m,c)=>'<code>'+c+'</code>')
+    // bold, italic, strikethrough
+    .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
+    .replace(/__([^_]+)__/g,'<strong>$1</strong>')
+    .replace(/(^|[^*])\*([^*\n]+)\*/g,'$1<em>$2</em>')
+    .replace(/(^|[^_])_([^_\n]+)_/g,'$1<em>$2</em>')
+    .replace(/~~([^~]+)~~/g,'<del>$1</del>')
+    // links [text](url)
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,'<a href="$2">$1</a>');
+}
+
+function mdToHtml(src){
+  if(!src) return "";
+  const lines=src.replace(/\r\n?/g,"\n").split("\n");
+  let out=[], i=0;
+  let listStack=[]; // {type:'ul'|'ol', indent}
+  function closeLists(toIndent){
+    while(listStack.length && listStack[listStack.length-1].indent>=toIndent){
+      out.push('</li></'+listStack.pop().type+'>');
+    }
+  }
+  function closeAllLists(){ while(listStack.length) out.push('</li></'+listStack.pop().type+'>'); }
+
+  while(i<lines.length){
+    let line=lines[i];
+
+    // fenced code block
+    const fence=line.match(/^\s*```(\w*)\s*$/);
+    if(fence){
+      closeAllLists();
+      const lang=fence[1]||"";
+      const buf=[]; i++;
+      while(i<lines.length && !/^\s*```\s*$/.test(lines[i])){ buf.push(lines[i]); i++; }
+      i++; // skip closing fence
+      out.push('<pre class="md-pre"'+(lang?' data-lang="'+esc(lang)+'"':'')+'><code>'+esc(buf.join("\n"))+'</code></pre>');
+      continue;
+    }
+
+    // horizontal rule
+    if(/^\s*([-*_])\s*(\1\s*){2,}$/.test(line)){ closeAllLists(); out.push('<hr>'); i++; continue; }
+
+    // heading
+    const h=line.match(/^(#{1,6})\s+(.*)$/);
+    if(h){ closeAllLists(); const lvl=h[1].length; out.push('<h'+lvl+' class="md-h">'+mdInline(esc(h[2].trim()))+'</h'+lvl+'>'); i++; continue; }
+
+    // blockquote (collapse consecutive)
+    if(/^\s*>/.test(line)){
+      closeAllLists(); const buf=[];
+      while(i<lines.length && /^\s*>/.test(lines[i])){ buf.push(lines[i].replace(/^\s*>\s?/,"")); i++; }
+      out.push('<blockquote>'+mdToHtml(buf.join("\n"))+'</blockquote>');
+      continue;
+    }
+
+    // table: header row + |---| separator
+    if(/^\s*\|.*\|\s*$/.test(line) && i+1<lines.length && /^\s*\|?[\s:|-]+\|?\s*$/.test(lines[i+1]) && lines[i+1].includes('-')){
+      closeAllLists();
+      const splitRow=r=>r.trim().replace(/^\||\|$/g,"").split("|").map(c=>c.trim());
+      const headers=splitRow(line); i+=2;
+      let t='<table class="md-table"><thead><tr>'+headers.map(c=>'<th>'+mdInline(esc(c))+'</th>').join("")+'</tr></thead><tbody>';
+      while(i<lines.length && /^\s*\|.*\|\s*$/.test(lines[i])){
+        const cells=splitRow(lines[i]);
+        t+='<tr>'+cells.map(c=>'<td>'+mdInline(esc(c))+'</td>').join("")+'</tr>'; i++;
+      }
+      t+='</tbody></table>'; out.push(t); continue;
+    }
+
+    // list item (ordered or unordered), indent-aware
+    const li=line.match(/^(\s*)([-*+]|\d+[.)])\s+(.*)$/);
+    if(li){
+      const indent=li[1].length;
+      const ordered=/\d/.test(li[2]);
+      const type=ordered?'ol':'ul';
+      closeLists(indent+1);
+      const top=listStack[listStack.length-1];
+      if(!top || top.indent<indent){
+        out.push('<'+type+' class="md-list">'); listStack.push({type,indent});
+      } else {
+        out.push('</li>');
+      }
+      out.push('<li>'+mdInline(esc(li[3])));
+      i++; continue;
+    }
+
+    // blank line
+    if(/^\s*$/.test(line)){ closeAllLists(); i++; continue; }
+
+    // paragraph: gather consecutive non-special lines
+    closeAllLists();
+    const buf=[line]; i++;
+    while(i<lines.length && lines[i].trim()!=="" &&
+          !/^\s*```/.test(lines[i]) && !/^(#{1,6})\s/.test(lines[i]) &&
+          !/^\s*>/.test(lines[i]) && !/^(\s*)([-*+]|\d+[.)])\s+/.test(lines[i]) &&
+          !/^\s*([-*_])\s*(\1\s*){2,}$/.test(lines[i])){
+      buf.push(lines[i]); i++;
+    }
+    out.push('<p>'+mdInline(esc(buf.join("\n"))).replace(/\n/g,"<br>")+'</p>');
+  }
+  closeAllLists();
+  return out.join("\n");
+}
+
+// Render a text block as markdown, with optional search-term highlighting.
+function mdBubble(text,q){ return hlHtml(mdToHtml(text),q); }
 function shortPath(p){
   if(!p) return "(unknown)";
   const home=p.replace(/^\/Users\/[^/]+/,"~"), parts=home.split("/");
@@ -276,32 +483,45 @@ async function loadSessions(refresh){
   render();
 }
 
-function filtered(){
-  const q=$("search").value.trim().toLowerCase(), proj=$("project").value, sort=$("sort").value;
-  let list=SESSIONS.filter(s=>{
-    if(proj && s.cwd!==proj) return false;
-    if(!q) return true;
-    const hay=(s.title+" "+s.summary+" "+s.first_prompt+" "+s.cwd+" "+(s.git_branch||"")).toLowerCase();
-    return q.split(/\s+/).every(t=>hay.includes(t));
-  });
-  list.sort((a,b)=>{
-    if(sort==="updated") return (b.mtime||0)-(a.mtime||0);
-    if(sort==="created") return (a.created||"").localeCompare(b.created||"");
-    if(sort==="msgs") return (b.user_msgs+b.assistant_msgs)-(a.user_msgs+a.assistant_msgs);
-    if(sort==="sub") return (b.sub_count||0)-(a.sub_count||0);
-    if(sort==="title") return a.title.localeCompare(b.title);
-    return 0;
-  });
+// Search state:
+//  MODE      — "keyword" | "ai"
+//  RESULTS   — null = show all sessions; array = a search result set (already
+//              relevance-ordered), each item is a session with optional
+//              _snippet (keyword) or _reason (AI)
+//  SEARCH_MSG — a banner string shown above the list (errors, "0 found", etc.)
+let MODE="keyword", RESULTS=null, SEARCH_MSG="";
+
+function ordered(){
+  const proj=$("project").value, sort=$("sort").value;
+  let list = RESULTS!==null ? RESULTS.slice() : SESSIONS.slice();
+  if(proj) list=list.filter(s=>s.cwd===proj);
+  // when showing search RESULTS, keep relevance order unless the user picked
+  // an explicit non-default sort
+  const relevanceOrder = RESULTS!==null && sort==="updated";
+  if(!relevanceOrder){
+    list.sort((a,b)=>{
+      if(sort==="updated") return (b.mtime||0)-(a.mtime||0);
+      if(sort==="created") return (a.created||"").localeCompare(b.created||"");
+      if(sort==="msgs") return (b.user_msgs+b.assistant_msgs)-(a.user_msgs+a.assistant_msgs);
+      if(sort==="sub") return (b.sub_count||0)-(a.sub_count||0);
+      if(sort==="title") return a.title.localeCompare(b.title);
+      return 0;
+    });
+  }
   return list;
 }
 
 function render(){
-  const q=$("search").value.trim(), list=filtered();
-  $("count").textContent=list.length+" shown";
-  $("list").innerHTML=list.map(s=>`
+  const q=$("search").value.trim(), list=ordered();
+  const total = RESULTS!==null ? (RESULTS.length+" match"+(RESULTS.length===1?"":"es")) : (list.length+" shown");
+  $("count").textContent=total;
+  const banner = SEARCH_MSG ? `<div class="empty" style="padding:18px 14px">${esc(SEARCH_MSG)}</div>` : "";
+  $("list").innerHTML=banner+(list.map(s=>`
     <div class="item ${CURRENT===s.id?'active':''}" data-id="${s.id}">
       <div class="t">${hl(s.title,q)}</div>
       ${s.summary?`<div class="s">${hl(s.summary,q)}</div>`:''}
+      ${s._reason?`<div class="reason">${esc(s._reason)}</div>`:''}
+      ${s._snippet?`<div class="s" style="margin-top:6px">…${hl(s._snippet,q)}…</div>`:''}
       <div class="meta">
         <span class="pill time">${relTime(s.updated)}</span>
         <span class="pill">${s.user_msgs+s.assistant_msgs} msgs</span>
@@ -309,8 +529,51 @@ function render(){
         ${s.git_branch?`<span class="pill branch">⎇ ${esc(s.git_branch)}</span>`:''}
         <span class="pill path" title="${esc(s.cwd)}">${esc(shortPath(s.cwd))}</span>
       </div>
-    </div>`).join("") || '<div class="empty">No conversations match.</div>';
+    </div>`).join("") || (banner?"":'<div class="empty">No conversations match.</div>'));
   [...document.querySelectorAll(".item")].forEach(el=>el.onclick=()=>openSession(el.dataset.id));
+}
+
+// keyword full-text search over message bodies (instant, offline)
+let kwTimer;
+async function runKeyword(){
+  const q=$("search").value.trim();
+  if(!q){ RESULTS=null; SEARCH_MSG=""; render(); return; }
+  const data=await window.csb.search(q);
+  RESULTS=data.results||[];
+  SEARCH_MSG = RESULTS.length ? "" : `No conversations mention “${q}”.`;
+  render();
+}
+
+// AI semantic search (calls the Claude API; runs on Enter)
+async function runAI(){
+  const q=$("search").value.trim();
+  if(!q){ RESULTS=null; SEARCH_MSG=""; render(); return; }
+  $("searchspin").classList.add("on");
+  SEARCH_MSG="";
+  try{
+    const data=await window.csb.aiSearch(q);
+    if(data.error){ RESULTS=[]; SEARCH_MSG=data.error; }
+    else{
+      RESULTS=data.results||[];
+      SEARCH_MSG = RESULTS.length ? "" : "Claude didn’t find a matching conversation. Try rephrasing.";
+    }
+  }catch(e){ RESULTS=[]; SEARCH_MSG="AI search failed: "+(e&&e.message||e); }
+  $("searchspin").classList.remove("on");
+  render();
+}
+
+function setMode(m){
+  MODE=m;
+  $("mode-keyword").classList.toggle("active", m==="keyword");
+  $("mode-ai").classList.toggle("active", m==="ai");
+  $("aihint").classList.toggle("on", m==="ai");
+  document.body.classList.toggle("aimode", m==="ai");
+  $("search").placeholder = m==="ai"
+    ? "Ask in plain English, then press Enter…"
+    : "Search conversations…  (⌘K)";
+  // reset results when switching modes
+  RESULTS=null; SEARCH_MSG="";
+  if($("search").value.trim() && m==="keyword") runKeyword(); else render();
 }
 
 // pick an icon + style for a tool card based on its name
@@ -362,7 +625,7 @@ function renderTool(b, q){
 function renderBlocks(blocks, q){
   if(!blocks) return "";
   return blocks.map(b=>{
-    if(b.kind==="text") return `<div class="bubble">${hl(b.text,q)}</div>`;
+    if(b.kind==="text") return `<div class="bubble md">${mdBubble(b.text,q)}</div>`;
     if(b.kind==="tool") return renderTool(b,q);
     return "";
   }).join("");
@@ -420,17 +683,26 @@ async function openSession(id){
         </div>
       </div>
       <div class="btns">
-        <button class="primary" id="resume-btn">▶ Resume</button>
+        <button class="primary" id="resume-btn">▶ Resume in Terminal</button>
         <button id="copy-btn">Copy cmd</button>
       </div>
     </div>
-    <div class="transcript"><div class="thread">${thread||'<div class="empty">No displayable messages.</div>'}${orphans}</div></div>`;
+    <div class="transcript"><div class="thread" id="thread">${thread||'<div class="empty">No displayable messages.</div>'}${orphans}<div id="live"></div></div></div>
+    <div class="composer">
+      <div class="composer-inner">
+        <textarea id="chat-input" rows="1" placeholder="Continue this conversation…  (Enter to send, Shift+Enter for newline)"></textarea>
+        <button class="primary" id="send-btn" title="Send">➤</button>
+        <button id="stop-btn" title="Stop" style="display:none">■</button>
+      </div>
+      <div class="composer-hint">Replies stream live from your local <code>claude</code> — new turns are saved to this session.</div>
+    </div>`;
 
   $("resume-btn").onclick=()=>resume(s.id);
   $("copy-btn").onclick=()=>{
     const cmd=`cd ${s.cwd} && claude --resume ${s.id}`;
     navigator.clipboard.writeText(cmd); toast('Copied: <code>'+esc(cmd)+'</code>');
   };
+  setupComposer(s.id);
 }
 
 async function resume(id){
@@ -440,13 +712,124 @@ async function resume(id){
   else toast('Run manually: <code>'+esc(data.cmd||'')+'</code> '+(data.error?('('+esc(data.error)+')'):''));
 }
 
+// ---- in-UI streaming chat ------------------------------------------------
+let CHAT_BUSY=false, CHAT_UNSUB=null, CHAT_TURN=null;
+
+function setupComposer(sessionId){
+  const input=$("chat-input"), sendBtn=$("send-btn"), stopBtn=$("stop-btn");
+  if(!input) return;
+  // auto-grow textarea
+  const grow=()=>{ input.style.height="auto"; input.style.height=Math.min(input.scrollHeight,160)+"px"; };
+  input.addEventListener("input",grow);
+  input.addEventListener("keydown",e=>{
+    if(e.key==="Enter" && !e.shiftKey){ e.preventDefault(); sendChat(sessionId); }
+  });
+  sendBtn.onclick=()=>sendChat(sessionId);
+  stopBtn.onclick=()=>stopChat();
+  setTimeout(()=>input.focus(),50);
+}
+
+function scrollThread(){
+  const t=document.querySelector(".transcript");
+  if(t) t.scrollTop=t.scrollHeight;
+}
+
+function sendChat(sessionId){
+  if(CHAT_BUSY) return;
+  const input=$("chat-input");
+  const msg=(input.value||"").trim();
+  if(!msg) return;
+  input.value=""; input.style.height="auto";
+
+  const live=$("live");
+  // append the user's message bubble
+  live.insertAdjacentHTML("beforeend",
+    `<div class="msg user"><div class="who"><span class="av"></span>you</div><div class="bubble md">${mdBubble(msg,"")}</div></div>`);
+  // append an assistant message shell we'll stream into
+  const turn="t"+Date.now();
+  CHAT_TURN=turn;
+  live.insertAdjacentHTML("beforeend",
+    `<div class="msg assistant" id="a-${turn}">
+       <div class="who"><span class="av"></span>claude</div>
+       <div class="chat-status" id="st-${turn}"><span class="dots"><i></i><i></i><i></i></span> <span id="stlabel-${turn}">starting…</span></div>
+       <div class="bubble md" id="b-${turn}" style="display:none"></div>
+       <div class="chat-tools" id="tools-${turn}"></div>
+     </div>`);
+  scrollThread();
+
+  setBusy(true);
+  let acc="";  // accumulated assistant text
+  const bubble=()=>$("b-"+turn), statusEl=()=>$("st-"+turn);
+  const setLabel=(txt)=>{ const l=$("stlabel-"+turn); if(l) l.textContent=txt; };
+
+  CHAT_UNSUB=window.csb.startChat(turn, sessionId, msg, (ev)=>{
+    if(!ev) return;
+    if(ev.type==="status"){ setLabel(ev.text==="responding"?"responding…":(ev.text==="thinking"?"thinking…":ev.text)); }
+    else if(ev.type==="tool"){
+      const tl=$("tools-"+turn);
+      if(tl) tl.insertAdjacentHTML("beforeend",`<span class="tool">⚙ ${esc(ev.name)}</span>`);
+      setLabel("using tools…");
+      scrollThread();
+    }
+    else if(ev.type==="delta"){
+      acc+=ev.text;
+      const b=bubble(), st=statusEl();
+      if(st) st.style.display="none";
+      if(b){ b.style.display="block"; b.innerHTML=mdToHtml(acc); }
+      scrollThread();
+    }
+    else if(ev.type==="error"){
+      const st=statusEl(); if(st) st.innerHTML='<span style="color:var(--clay-d)">⚠ '+esc(ev.error)+'</span>';
+      const b=bubble(); if(b && acc){ /* keep partial */ }
+    }
+    else if(ev.type==="done"){
+      const st=statusEl();
+      if(st && !acc) st.innerHTML='<span style="color:var(--muted)">(no response)</span>';
+      else if(st) st.style.display="none";
+      finishChat();
+      scrollThread();
+    }
+  });
+}
+
+function setBusy(b){
+  CHAT_BUSY=b;
+  const send=$("send-btn"), stop=$("stop-btn"), input=$("chat-input");
+  if(send) send.style.display=b?"none":"";
+  if(stop) stop.style.display=b?"":"none";
+  if(input) input.disabled=b;
+}
+
+function finishChat(){
+  setBusy(false);
+  if(CHAT_UNSUB){ CHAT_UNSUB(); CHAT_UNSUB=null; }
+  CHAT_TURN=null;
+  const input=$("chat-input"); if(input){ input.disabled=false; setTimeout(()=>input.focus(),30); }
+}
+
+function stopChat(){
+  if(CHAT_TURN) window.csb.stopChat(CHAT_TURN);
+  const st=CHAT_TURN&&$("st-"+CHAT_TURN); if(st) st.innerHTML='<span style="color:var(--muted)">(stopped)</span>';
+  finishChat();
+}
+
 let toastTimer;
 function toast(html){
   const t=$("toast"); t.innerHTML=html; t.classList.add("show");
   clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove("show"),5000);
 }
 
-$("search").addEventListener("input",render);
+// search input: keyword mode searches as you type (debounced); AI mode waits for Enter
+$("search").addEventListener("input",()=>{
+  if(MODE==="keyword"){ clearTimeout(kwTimer); kwTimer=setTimeout(runKeyword,180); }
+  // AI mode: typing doesn't fire a request; show a fresh hint if cleared
+  else if(!$("search").value.trim()){ RESULTS=null; SEARCH_MSG=""; render(); }
+});
+$("search").addEventListener("keydown",e=>{
+  if(e.key==="Enter"){ e.preventDefault(); MODE==="ai"?runAI():runKeyword(); }
+});
+$("mode-keyword").onclick=()=>setMode("keyword");
+$("mode-ai").onclick=()=>setMode("ai");
 $("project").addEventListener("change",render);
 $("sort").addEventListener("change",render);
 document.addEventListener("keydown",e=>{ if((e.metaKey||e.ctrlKey)&&e.key==="k"){e.preventDefault();$("search").focus();}});

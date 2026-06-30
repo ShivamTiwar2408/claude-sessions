@@ -43,15 +43,36 @@ rm -rf "$INSTALLED"
 echo "==> Installing the NEW app to /Applications…"
 cp -R "$BUILT" "/Applications/"
 
-# Ad-hoc code-sign with a STABLE identifier. macOS ties TCC permission grants
-# (Automation / "access data from other apps") to the app's code signature.
-# An unsigned app looks brand-new on every rebuild, so the prompt reappears
-# each time. A stable ad-hoc signature makes macOS treat every rebuild as the
-# SAME app, so you grant the permission once and it sticks.
-echo "==> Ad-hoc code-signing (stable identity so the permission prompt is one-time)…"
-codesign --force --deep --sign - \
-  --identifier "dev.local.claude-session-browser" \
-  "$INSTALLED" 2>/dev/null || echo "    (codesign skipped/failed — non-fatal)"
+# Code-sign with a PERSISTENT self-signed identity so macOS TCC permission
+# grants (Files & Folders / Automation) survive rebuilds.
+#
+# Why not ad-hoc: macOS keys an ad-hoc-signed app's permissions to its cdhash
+# (a hash of the bytes), which changes on every rebuild — so "Allow" never
+# sticks. A real signing *identity* (even self-signed) lets TCC key the grant
+# to the identity, which is stable across rebuilds. The identity is created
+# once by setup-signing.sh and lives in the login keychain.
+SIGN_ID="Claude Sessions Local Signing"
+ENTITLEMENTS="$HERE/entitlements.plist"
+if security find-certificate -c "$SIGN_ID" >/dev/null 2>&1; then
+  echo "==> Code-signing with persistent identity '$SIGN_ID' (grant persists across rebuilds)…"
+  # Sign inner native helpers first (inside-out), then the app bundle.
+  find "$INSTALLED/Contents/Frameworks" -type f \( -name "*.dylib" -o -perm +111 \) 2>/dev/null \
+    | while read -r f; do codesign --force --timestamp=none --sign "$SIGN_ID" "$f" 2>/dev/null || true; done
+  find "$INSTALLED/Contents/Frameworks" -maxdepth 1 -name "*.framework" -o -name "*.app" 2>/dev/null \
+    | while read -r b; do codesign --force --timestamp=none --sign "$SIGN_ID" "$b" 2>/dev/null || true; done
+  codesign --force --timestamp=none \
+    --identifier "dev.local.claude-session-browser" \
+    ${ENTITLEMENTS:+--entitlements "$ENTITLEMENTS"} \
+    --sign "$SIGN_ID" "$INSTALLED" 2>/tmp/csb_sign.log \
+    && echo "    signed ✓ (Authority: $SIGN_ID)" \
+    || { echo "    signing failed — see /tmp/csb_sign.log; falling back to ad-hoc"; \
+         codesign --force --deep --sign - --identifier "dev.local.claude-session-browser" "$INSTALLED" 2>/dev/null || true; }
+else
+  echo "==> No persistent signing identity found — run ./setup-signing.sh once to stop"
+  echo "    the permission prompt recurring. Falling back to ad-hoc for now…"
+  codesign --force --deep --sign - \
+    --identifier "dev.local.claude-session-browser" "$INSTALLED" 2>/dev/null || true
+fi
 
 echo "==> Clearing Gatekeeper quarantine (local build)…"
 xattr -dr com.apple.quarantine "$INSTALLED" 2>/dev/null || true

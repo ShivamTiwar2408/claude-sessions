@@ -492,4 +492,46 @@ function listSessions(refresh) {
   };
 }
 
-module.exports = { listSessions, loadTranscript, getIndex, PROJECTS_DIR };
+// ---- full-text search index --------------------------------------------
+// Helpers the search index needs to extract body text. Kept here so all the
+// JSONL knowledge lives in one place.
+const searchindex = require("./searchindex");
+const SEARCH_HELPERS = {
+  iterRecords,
+  textFromContent,
+  toolHeadline,
+};
+
+// Build/refresh the body index incrementally (mtime-based). Call after the
+// metadata index exists. Returns { scanned, reindexed, removed }.
+function syncSearchIndex() {
+  searchindex.loadCache();
+  return searchindex.syncIndex(getIndex(), SEARCH_HELPERS);
+}
+
+// Full-text keyword search across transcript bodies. Returns sessions
+// (full metadata) ordered by relevance, each with a `_snippet` + `_score`.
+function searchSessions(query) {
+  const { terms, results } = searchindex.search(query);
+  const sessions = getIndex();
+  const byId = {};
+  for (const s of sessions) byId[s.id] = s;
+  const out = [];
+  for (const r of results) {
+    const s = byId[r.id];
+    if (s) out.push({ ...s, _snippet: r.snippet, _score: r.score, _hits: r.hits });
+  }
+  return { terms, results: out };
+}
+
+module.exports = {
+  listSessions,
+  loadTranscript,
+  getIndex,
+  buildIndex,
+  syncSearchIndex,
+  searchSessions,
+  PROJECTS_DIR,
+  // re-exported for the AI search layer
+  _searchindex: searchindex,
+};

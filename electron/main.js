@@ -1,4 +1,4 @@
-// Electron main process for Claude Sessions — pure Node, no Python sidecar.
+// Electron main process for Claude Code (session browser) — pure Node, no Python sidecar.
 //
 // On launch it:
 //   1. Builds the session index in-process (parser.js, plain Node fs).
@@ -16,9 +16,28 @@ const parser = require("./parser");
 const aisearch = require("./aisearch");
 const chat = require("./chat");
 
-// Identify as "Claude Sessions" (affects the app menu in dev; the dock
+// Identify as "Claude Code" (affects the app menu in dev; the dock
 // tooltip comes from the packaged bundle's Info.plist — see `npm run dist`).
-app.setName("Claude Sessions");
+app.setName("Claude Code");
+
+// Single-instance lock: if a copy is already running, focus it and quit this
+// one instead of spawning a duplicate (which showed as two dock icons and
+// re-triggered the macOS automation-permission prompt on every launch).
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    const win = BrowserWindow.getAllWindows()[0];
+    if (win) {
+      if (win.isMinimized()) win.restore();
+      win.show();
+      win.focus();
+    } else {
+      createWindow();
+    }
+  });
+}
 
 let mainWindow = null;
 
@@ -28,7 +47,7 @@ function createWindow() {
     height: 840,
     minWidth: 760,
     minHeight: 480,
-    title: "Claude Sessions",
+    title: "Claude Code",
     backgroundColor: "#faf7f2",
     titleBarStyle: "hiddenInset",
     webPreferences: {
@@ -98,12 +117,15 @@ ipcMain.handle("csb:resume", (_evt, id) => {
 // Streaming chat: continue a session from the UI. The renderer passes a unique
 // turnId; we stream events back on channel `csb:chat:<turnId>`.
 ipcMain.handle("csb:chat", (evt, args) => {
-  const { turnId, id, message } = args || {};
+  const { turnId, id, message, model, agent, newSession, cwd: cwdOverride } = args || {};
   if (!turnId || !id || !message) return { ok: false, error: "missing args" };
-  const sessions = parser.getIndex();
-  const match = sessions.find((s) => s.id === id);
-  const cwd = match ? match.cwd : undefined;
-  chat.startChat(evt.sender, turnId, id, cwd, message);
+  let cwd = cwdOverride;
+  if (!cwd) {
+    const sessions = parser.getIndex();
+    const match = sessions.find((s) => s.id === id);
+    cwd = match ? match.cwd : undefined;
+  }
+  chat.startChat(evt.sender, turnId, id, cwd, message, { model, agent, newSession });
   return { ok: true };
 });
 

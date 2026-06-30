@@ -13,11 +13,17 @@ contextBridge.exposeInMainWorld("csb", {
 
   // Streaming chat. startChat returns an unsubscribe fn; `onEvent` fires for
   // each streamed payload ({type:"delta"|"tool"|"status"|"error"|"done", ...}).
-  startChat: (turnId, id, message, onEvent) => {
+  startChat: (turnId, id, message, opts, onEvent) => {
     const channel = `csb:chat:${turnId}`;
     const listener = (_e, payload) => onEvent(payload);
     ipcRenderer.on(channel, listener);
-    ipcRenderer.invoke("csb:chat", { turnId, id, message });
+    ipcRenderer.invoke("csb:chat", {
+      turnId, id, message,
+      model: (opts && opts.model) || undefined,
+      agent: (opts && opts.agent) || undefined,
+      newSession: (opts && opts.newSession) || false,
+      cwd: (opts && opts.cwd) || undefined,
+    });
     return () => ipcRenderer.removeListener(channel, listener);
   },
   stopChat: (turnId) => ipcRenderer.invoke("csb:chat:stop", turnId),

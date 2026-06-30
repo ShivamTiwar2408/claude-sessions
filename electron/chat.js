@@ -42,7 +42,8 @@ const running = new Map(); // turnId -> child process
 //   sessionId   : the claude session to resume
 //   cwd         : working directory to run in (the session's project dir)
 //   message     : the user's new message
-function startChat(webContents, turnId, sessionId, cwd, message) {
+function startChat(webContents, turnId, sessionId, cwd, message, opts) {
+  opts = opts || {};
   const channel = `csb:chat:${turnId}`;
   const send = (payload) => {
     try {
@@ -54,13 +55,21 @@ function startChat(webContents, turnId, sessionId, cwd, message) {
   const args = [
     "-p",
     message,
-    "--resume",
-    sessionId,
     "--output-format",
     "stream-json",
     "--include-partial-messages",
     "--verbose",
   ];
+  // resume existing or start new (new = use --session-id without --resume)
+  if (opts.newSession) {
+    args.push("--session-id", sessionId);
+  } else {
+    args.push("--resume", sessionId);
+  }
+  // optional model override (alias like "opus"/"sonnet" or full id)
+  if (opts.model) args.push("--model", String(opts.model));
+  // optional agent override (run the turn as a specific sub-agent persona)
+  if (opts.agent) args.push("--agent", String(opts.agent));
 
   let proc;
   try {

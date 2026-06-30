@@ -13,6 +13,8 @@ const { execFile } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 const parser = require("./parser");
+const aisearch = require("./aisearch");
+const chat = require("./chat");
 
 // Identify as "Claude Sessions" (affects the app menu in dev; the dock
 // tooltip comes from the packaged bundle's Info.plist — see `npm run dist`).
@@ -52,7 +54,12 @@ function createWindow() {
 
 ipcMain.handle("csb:list", (_evt, refresh) => {
   try {
-    return parser.listSessions(!!refresh);
+    const out = parser.listSessions(!!refresh);
+    // keep the full-text body index in sync (incremental, mtime-based)
+    try {
+      out.indexStats = parser.syncSearchIndex();
+    } catch (_) {}
+    return out;
   } catch (e) {
     return { sessions: [], projects: [], error: String(e) };
   }
@@ -66,9 +73,61 @@ ipcMain.handle("csb:session", (_evt, id) => {
   }
 });
 
+// Full-text keyword search over transcript bodies.
+ipcMain.handle("csb:search", (_evt, query) => {
+  try {
+    return parser.searchSessions(query || "");
+  } catch (e) {
+    return { terms: [], results: [], error: String(e) };
+  }
+});
+
+// AI / semantic search: rank candidates by meaning using the Claude API.
+ipcMain.handle("csb:aisearch", async (_evt, query) => {
+  try {
+    return await aiSearch(query || "");
+  } catch (e) {
+    return { error: String(e), results: [] };
+  }
+});
+
 ipcMain.handle("csb:resume", (_evt, id) => {
   return resumeSession(id);
 });
+
+// Streaming chat: continue a session from the UI. The renderer passes a unique
+// turnId; we stream events back on channel `csb:chat:<turnId>`.
+ipcMain.handle("csb:chat", (evt, args) => {
+  const { turnId, id, message } = args || {};
+  if (!turnId || !id || !message) return { ok: false, error: "missing args" };
+  const sessions = parser.getIndex();
+  const match = sessions.find((s) => s.id === id);
+  const cwd = match ? match.cwd : undefined;
+  chat.startChat(evt.sender, turnId, id, cwd, message);
+  return { ok: true };
+});
+
+ipcMain.handle("csb:chat:stop", (_evt, turnId) => {
+  return { stopped: chat.stopChat(turnId) };
+});
+
+// AI semantic search: rank sessions by meaning via the Claude API, then map
+// the model's {id, reason} hits back onto full session metadata.
+async function aiSearch(query) {
+  const sessions = parser.getIndex();
+  parser.syncSearchIndex(); // ensure body snippets exist for the catalog
+  const getBody = (id) => parser._searchindex.getBody(id);
+  const out = await aisearch.aiRank(query, sessions, getBody);
+  const byId = {};
+  for (const s of sessions) byId[s.id] = s;
+  const results = (out.results || [])
+    .map((r) => {
+      const s = byId[r.id];
+      return s ? { ...s, _reason: r.reason } : null;
+    })
+    .filter(Boolean);
+  return { results, error: out.error, truncated: out.truncated };
+}
 
 function shellQuote(s) {
   return "'" + String(s).replace(/'/g, "'\\''") + "'";

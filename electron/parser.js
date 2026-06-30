@@ -476,6 +476,70 @@ function loadTranscript(sessionId) {
     messages,
     orphan_subagents: orphans,
     subagent_count: totalSub,
+    meta: extractMeta(records),
+  };
+}
+
+// Pull context-usage + loaded-capability info from the raw records:
+//   - context tokens: the latest assistant message's usage (input +
+//     cache_read + cache_creation ≈ tokens in the model's context window)
+//   - tools / mcp servers / agents / skills: accumulated from attachment
+//     delta records the CLI writes on session init.
+function extractMeta(records) {
+  let usage = null, model = null, version = null;
+  const tools = new Set(), mcp = new Set(), agents = new Set();
+  let skills = 0;
+  const skillNames = new Set();
+
+  for (const rec of records) {
+    if (rec.type === "assistant") {
+      const u = (rec.message || {}).usage;
+      if (u) usage = u;
+      const m = (rec.message || {}).model;
+      if (m) model = m;
+    }
+    if (rec.version && !version) version = rec.version;
+    if (rec.type === "attachment") {
+      const a = rec.attachment || {};
+      if (a.type === "deferred_tools_delta") {
+        for (const n of a.addedNames || []) tools.add(n);
+        for (const n of a.removedNames || []) tools.delete(n);
+        for (const n of a.pendingMcpServers || []) mcp.add(n);
+      } else if (a.type === "agent_listing_delta") {
+        for (const n of a.addedTypes || []) agents.add(n);
+        for (const n of a.removedTypes || []) agents.delete(n);
+      } else if (a.type === "skill_listing") {
+        if (typeof a.skillCount === "number") skills = a.skillCount;
+        for (const n of a.names || []) skillNames.add(n);
+      }
+    }
+  }
+
+  let ctx = null;
+  if (usage) {
+    const inp = usage.input_tokens || 0;
+    const cr = usage.cache_read_input_tokens || 0;
+    const cc = usage.cache_creation_input_tokens || 0;
+    const out = usage.output_tokens || 0;
+    ctx = {
+      input: inp,
+      cache_read: cr,
+      cache_creation: cc,
+      output: out,
+      // tokens occupying the context window on the latest turn
+      context_tokens: inp + cr + cc,
+    };
+  }
+
+  return {
+    model,
+    version,
+    context: ctx,
+    tools: tools.size,
+    mcp: mcp.size,
+    agents: agents.size,
+    skills: skills || skillNames.size,
+    agent_names: Array.from(agents).sort(),
   };
 }
 

@@ -83,9 +83,14 @@
   .head h1 { margin:0; font-size:19px; font-weight:600; letter-spacing:.2px; flex:1; }
   .head .sub { color:var(--muted); font-size:12.5px; margin-top:3px; }
   .head .sub a { color:var(--clay-d); text-decoration:none; font-weight:600; }
-  .theme-sel { -webkit-app-region:no-drag; width:auto; flex-shrink:0; padding:5px 8px;
-               font-size:12px; border-radius:9px; background:var(--card); color:var(--ink);
-               border:1px solid var(--line2); cursor:pointer; }
+  .theme-switch { -webkit-app-region:no-drag; flex-shrink:0; display:flex; gap:2px;
+                  background:var(--paper2); border:1px solid var(--line2); border-radius:10px;
+                  padding:2px; }
+  .theme-switch button { border:none; background:transparent; cursor:pointer; font-size:13px;
+                         line-height:1; padding:4px 6px; border-radius:7px; opacity:.5;
+                         transition:opacity .12s, background .12s; }
+  .theme-switch button:hover { opacity:.85; }
+  .theme-switch button.active { opacity:1; background:var(--card); box-shadow:var(--shadow); }
   .new-btn { flex-shrink:0; padding:6px 12px; font-size:12.5px; border-radius:10px;
              background:linear-gradient(180deg, var(--clay), var(--clay-d)); color:#fff;
              border:none; font-weight:700; cursor:pointer; -webkit-app-region:no-drag;
@@ -361,11 +366,11 @@
   <div class="sidebar">
     <div class="head">
       <div class="brand"><div class="logo"></div><h1>Claude Code</h1>
-        <select id="theme-sel" class="theme-sel" title="Theme">
-          <option value="paper">☀️ Paper</option>
-          <option value="soft">🌥️ Soft</option>
-          <option value="dark">🌙 Dark</option>
-        </select>
+        <div class="theme-switch" id="theme-switch" title="Theme">
+          <button data-theme-val="paper" title="Paper">☀️</button>
+          <button data-theme-val="soft" title="Soft">🌥️</button>
+          <button data-theme-val="dark" title="Dark">🌙</button>
+        </div>
         <button class="new-btn" id="new-btn" title="Start a new conversation">+ New</button></div>
       <div class="sub" id="sub">loading…</div>
     </div>
@@ -416,7 +421,9 @@ function applyTheme(name){
   const t = ["paper","soft","dark"].includes(name) ? name : "paper";
   document.documentElement.setAttribute("data-theme", t);
   try { localStorage.setItem("csb-theme", t); } catch(_){}
-  const sel=$("theme-sel"); if(sel && sel.value!==t) sel.value=t;
+  // reflect the active state on the button group
+  const sw=$("theme-switch");
+  if(sw) [...sw.querySelectorAll("button")].forEach(b=>b.classList.toggle("active", b.dataset.themeVal===t));
 }
 // apply persisted theme immediately (before paint where possible)
 applyTheme((function(){ try{ return localStorage.getItem("csb-theme"); }catch(_){ return null; } })() || "paper");
@@ -571,11 +578,24 @@ function shortPath(p){
 
 async function loadSessions(refresh){
   $("sub").textContent = refresh ? "rebuilding…" : "loading…";
-  const data=await window.csb.listSessions(!!refresh);
+  let data;
+  try {
+    data = await window.csb.listSessions(!!refresh);
+  } catch(e) {
+    data = null;
+  }
+  // Defensive: never blank the UI on a transient/failed load — keep whatever
+  // we already had and offer a retry. (Guards against reload races.)
+  if(!data || !Array.isArray(data.sessions)){
+    $("sub").innerHTML = "couldn’t load · <a href='#' id='refresh'>retry</a>";
+    const r=$("refresh"); if(r) r.onclick=e=>{e.preventDefault();loadSessions(true);};
+    if(!SESSIONS.length) $("list").innerHTML='<div class="empty">Couldn’t load sessions. Click retry above.</div>';
+    return;
+  }
   SESSIONS=data.sessions;
   const ps=$("project"), cur=ps.value;
   ps.innerHTML='<option value="">All projects ('+SESSIONS.length+')</option>'+
-    data.projects.map(p=>`<option value="${esc(p.cwd)}">${esc(shortPath(p.cwd))} (${p.count})</option>`).join("");
+    (data.projects||[]).map(p=>`<option value="${esc(p.cwd)}">${esc(shortPath(p.cwd))} (${p.count})</option>`).join("");
   ps.value=cur;
   const subs=SESSIONS.reduce((a,s)=>a+(s.sub_count||0),0);
   $("sub").innerHTML=SESSIONS.length+" sessions · "+subs+" sub-agents · <a href='#' id='refresh'>refresh</a>";
@@ -1140,8 +1160,15 @@ $("search").addEventListener("keydown",e=>{
 $("mode-keyword").onclick=()=>setMode("keyword");
 $("mode-ai").onclick=()=>setMode("ai");
 $("new-btn").onclick=()=>{ NEW_STARTED=false; openNewChat(); };
-$("theme-sel").onchange=e=>applyTheme(e.target.value);
-$("theme-sel").value=document.documentElement.getAttribute("data-theme")||"paper";
+// theme switch: button group (immune to native-<select> drag-region issues)
+(function(){
+  const sw=$("theme-switch");
+  if(sw) sw.addEventListener("click",e=>{
+    const btn=e.target.closest("button[data-theme-val]");
+    if(btn) applyTheme(btn.dataset.themeVal);
+  });
+  applyTheme(document.documentElement.getAttribute("data-theme")||"paper");
+})();
 // welcome-screen CTA (only present on the initial landing view)
 (function(){ const w=$("welcome-new"); if(w) w.onclick=()=>{ NEW_STARTED=false; openNewChat(); }; })();
 $("project").addEventListener("change",render);

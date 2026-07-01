@@ -965,88 +965,55 @@ function openNewChat(){
 function setupNewComposer(newId){
   const input=$("chat-input"), sendBtn=$("send-btn"), stopBtn=$("stop-btn");
   if(!input) return;
+  VIEW_SID=newId;
   const grow=()=>{ input.style.height="auto"; input.style.height=Math.min(input.scrollHeight,160)+"px"; };
   input.addEventListener("input",grow);
   input.addEventListener("keydown",e=>{
     if(e.key==="Enter" && !e.shiftKey){ e.preventDefault(); sendNewChat(newId); }
   });
   sendBtn.onclick=()=>sendNewChat(newId);
-  stopBtn.onclick=()=>stopChat();
+  stopBtn.onclick=()=>stopChat(newId);
   setTimeout(()=>input.focus(),50);
 }
 
-let NEW_STARTED=false;
+// Tracks which brand-new session ids have had their first message sent (so
+// subsequent turns resume instead of re-creating). Per-id, not global.
+const NEW_STARTED=new Set();
 function sendNewChat(sessionId){
-  if(CHAT_BUSY) return;
-  if(NEW_STARTED){
-    // after first message, behave like a resume chat
-    sendChat(sessionId);
-    return;
-  }
-  NEW_STARTED=true;
-  // override sendChat to use newSession flag on the first turn
+  if(sessionBusy(sessionId)) return;
   const input=$("chat-input");
   const msg=(input.value||"").trim();
-  if(!msg){ NEW_STARTED=false; return; }
+  if(!msg) return;
   input.value=""; input.style.height="auto";
-
   const model=($("chat-model")&&$("chat-model").value)||"";
   const agent=($("chat-agent")&&$("chat-agent").value)||"";
-
-  const live=$("live");
-  live.insertAdjacentHTML("beforeend",
-    `<div class="msg user"><div class="who"><span class="av"></span>you</div><div class="bubble md">${mdBubble(msg,"")}</div></div>`);
-  const turn="t"+Date.now();
-  CHAT_TURN=turn;
-  live.insertAdjacentHTML("beforeend",
-    `<div class="msg assistant" id="a-${turn}">
-       <div class="who"><span class="av"></span>claude</div>
-       <div class="chat-status" id="st-${turn}"><span class="dots"><i></i><i></i><i></i></span> <span id="stlabel-${turn}">starting new session…</span></div>
-       <div class="bubble md" id="b-${turn}" style="display:none"></div>
-       <div class="chat-tools" id="tools-${turn}"></div>
-     </div>`);
-  scrollThread();
-  setBusy(true);
-  let acc="";
-  const bubble=()=>$("b-"+turn), statusEl=()=>$("st-"+turn);
-  const setLabel=(txt)=>{ const l=$("stlabel-"+turn); if(l) l.textContent=txt; };
-
-  CHAT_UNSUB=window.csb.startChat(turn, sessionId, msg, {model, agent, newSession:true}, (ev)=>{
-    if(!ev) return;
-    if(ev.type==="status"){ setLabel(ev.text==="responding"?"responding…":(ev.text==="thinking"?"thinking…":ev.text)); }
-    else if(ev.type==="tool"){
-      const tl=$("tools-"+turn);
-      if(tl) tl.insertAdjacentHTML("beforeend",`<span class="tool">⚙ ${esc(ev.name)}</span>`);
-      setLabel("using tools…"); scrollThread();
-    }
-    else if(ev.type==="delta"){
-      acc+=ev.text;
-      const b=bubble(), st=statusEl();
-      if(st) st.style.display="none";
-      if(b){ b.style.display="block"; b.innerHTML=mdToHtml(acc); }
-      scrollThread();
-    }
-    else if(ev.type==="error"){
-      const st=statusEl(); if(st) st.innerHTML='<span style="color:var(--clay-d)">⚠ '+esc(ev.error)+'</span>';
-    }
-    else if(ev.type==="done"){
-      const st=statusEl();
-      if(st && !acc) st.innerHTML='<span style="color:var(--muted)">(no response)</span>';
-      else if(st) st.style.display="none";
-      finishChat();
-      // update header to show we're now an active session
-      const h=$("detail"); if(h){ const hdr=h.querySelector(".dmeta"); if(hdr) hdr.innerHTML=`<span>Session: ${sessionId}</span><span class="dot">•</span><span>Refresh the sidebar to see this in your history</span>`; }
-      scrollThread();
-    }
-  });
+  const first=!NEW_STARTED.has(sessionId);
+  NEW_STARTED.add(sessionId);
+  startTurn(sessionId, msg, {model, agent, newSession:first});
 }
 
 // ---- in-UI streaming chat ------------------------------------------------
-let CHAT_BUSY=false, CHAT_UNSUB=null, CHAT_TURN=null;
+// Per-session chat state so multiple sessions can stream concurrently.
+// Keyed by session id -> { turn, unsub }. A session is "busy" iff it has an
+// entry here. This replaces the old single global CHAT_BUSY flag, which made
+// one active stream block the send button / Enter key of every other session.
+const CHATS = new Map();
+let VIEW_SID = null;  // the session whose composer is currently on screen
+function sessionBusy(sid){ return CHATS.has(sid); }
+
+// Toggle the CURRENTLY VISIBLE composer's controls (only one composer is ever
+// on screen at a time — the detail pane shows a single session).
+function setComposerBusy(b){
+  const send=$("send-btn"), stop=$("stop-btn"), input=$("chat-input");
+  if(send) send.style.display=b?"none":"";
+  if(stop) stop.style.display=b?"":"none";
+  if(input) input.disabled=b;
+}
 
 function setupComposer(sessionId){
   const input=$("chat-input"), sendBtn=$("send-btn"), stopBtn=$("stop-btn");
   if(!input) return;
+  VIEW_SID=sessionId;
   // auto-grow textarea
   const grow=()=>{ input.style.height="auto"; input.style.height=Math.min(input.scrollHeight,160)+"px"; };
   input.addEventListener("input",grow);
@@ -1054,8 +1021,10 @@ function setupComposer(sessionId){
     if(e.key==="Enter" && !e.shiftKey){ e.preventDefault(); sendChat(sessionId); }
   });
   sendBtn.onclick=()=>sendChat(sessionId);
-  stopBtn.onclick=()=>stopChat();
-  setTimeout(()=>input.focus(),50);
+  stopBtn.onclick=()=>stopChat(sessionId);
+  // reflect this session's own busy state (it may be streaming in background)
+  setComposerBusy(sessionBusy(sessionId));
+  if(!sessionBusy(sessionId)) setTimeout(()=>input.focus(),50);
 }
 
 function scrollThread(){
@@ -1064,7 +1033,7 @@ function scrollThread(){
 }
 
 function sendChat(sessionId){
-  if(CHAT_BUSY) return;
+  if(sessionBusy(sessionId)) return;   // only blocks THIS session, not others
   const input=$("chat-input");
   const msg=(input.value||"").trim();
   if(!msg) return;
@@ -1073,80 +1042,95 @@ function sendChat(sessionId){
   // read model/agent overrides from the composer selectors
   const model=($("chat-model")&&$("chat-model").value)||"";
   const agent=($("chat-agent")&&$("chat-agent").value)||"";
+  startTurn(sessionId, msg, {model, agent});
+}
+
+// Shared streaming turn used by both resume-chat and (post-first-message)
+// new-chat. Renders into elements keyed by a unique turn id, and only touches
+// the composer when this session is the one currently on screen.
+function startTurn(sessionId, msg, opts){
+  opts = opts || {};
+  const model=opts.model||"", agent=opts.agent||"";
   const tags=[];
   if(model) tags.push(`<span class="turn-tag">⚡ ${esc(model)}</span>`);
   if(agent) tags.push(`<span class="turn-tag">🤖 ${esc(agentLabel(agent))}</span>`);
 
   const live=$("live");
-  // append the user's message bubble
-  live.insertAdjacentHTML("beforeend",
+  if(live) live.insertAdjacentHTML("beforeend",
     `<div class="msg user"><div class="who"><span class="av"></span>you ${tags.join("")}</div><div class="bubble md">${mdBubble(msg,"")}</div></div>`);
-  // append an assistant message shell we'll stream into
-  const turn="t"+Date.now();
-  CHAT_TURN=turn;
-  live.insertAdjacentHTML("beforeend",
+  const turn="t"+Date.now()+Math.floor(Math.random()*1000);
+  if(live) live.insertAdjacentHTML("beforeend",
     `<div class="msg assistant" id="a-${turn}">
        <div class="who"><span class="av"></span>claude</div>
-       <div class="chat-status" id="st-${turn}"><span class="dots"><i></i><i></i><i></i></span> <span id="stlabel-${turn}">starting…</span></div>
+       <div class="chat-status" id="st-${turn}"><span class="dots"><i></i><i></i><i></i></span> <span id="stlabel-${turn}">${opts.newSession?"starting new session…":"starting…"}</span></div>
        <div class="bubble md" id="b-${turn}" style="display:none"></div>
        <div class="chat-tools" id="tools-${turn}"></div>
      </div>`);
   scrollThread();
+  if(VIEW_SID===sessionId) setComposerBusy(true);
 
-  setBusy(true);
-  let acc="";  // accumulated assistant text
-  const bubble=()=>$("b-"+turn), statusEl=()=>$("st-"+turn);
-  const setLabel=(txt)=>{ const l=$("stlabel-"+turn); if(l) l.textContent=txt; };
+  let acc="";
+  const el=id=>document.getElementById(id);       // works even when off-screen
+  const bubble=()=>el("b-"+turn), statusEl=()=>el("st-"+turn);
+  const setLabel=(txt)=>{ const l=el("stlabel-"+turn); if(l) l.textContent=txt; };
 
-  CHAT_UNSUB=window.csb.startChat(turn, sessionId, msg, {model, agent}, (ev)=>{
+  const startOpts = {model, agent};
+  if(opts.newSession) startOpts.newSession = true;
+
+  const unsub=window.csb.startChat(turn, sessionId, msg, startOpts, (ev)=>{
     if(!ev) return;
     if(ev.type==="status"){ setLabel(ev.text==="responding"?"responding…":(ev.text==="thinking"?"thinking…":ev.text)); }
     else if(ev.type==="tool"){
-      const tl=$("tools-"+turn);
+      const tl=el("tools-"+turn);
       if(tl) tl.insertAdjacentHTML("beforeend",`<span class="tool">⚙ ${esc(ev.name)}</span>`);
       setLabel("using tools…");
-      scrollThread();
+      if(VIEW_SID===sessionId) scrollThread();
     }
     else if(ev.type==="delta"){
       acc+=ev.text;
       const b=bubble(), st=statusEl();
       if(st) st.style.display="none";
       if(b){ b.style.display="block"; b.innerHTML=mdToHtml(acc); }
-      scrollThread();
+      if(VIEW_SID===sessionId) scrollThread();
     }
     else if(ev.type==="error"){
       const st=statusEl(); if(st) st.innerHTML='<span style="color:var(--clay-d)">⚠ '+esc(ev.error)+'</span>';
-      const b=bubble(); if(b && acc){ /* keep partial */ }
     }
     else if(ev.type==="done"){
       const st=statusEl();
       if(st && !acc) st.innerHTML='<span style="color:var(--muted)">(no response)</span>';
       else if(st) st.style.display="none";
-      finishChat();
-      scrollThread();
+      finishChat(sessionId);
+      if(opts.newSession){
+        const h=$("detail"); if(h && VIEW_SID===sessionId){ const hdr=h.querySelector(".dmeta"); if(hdr) hdr.innerHTML=`<span>Session: ${sessionId}</span><span class="dot">•</span><span>Refresh the sidebar to see this in your history</span>`; }
+      }
+      if(VIEW_SID===sessionId) scrollThread();
     }
   });
+
+  CHATS.set(sessionId, {turn, unsub});
+  return turn;
 }
 
-function setBusy(b){
-  CHAT_BUSY=b;
-  const send=$("send-btn"), stop=$("stop-btn"), input=$("chat-input");
-  if(send) send.style.display=b?"none":"";
-  if(stop) stop.style.display=b?"":"none";
-  if(input) input.disabled=b;
+function finishChat(sessionId){
+  const entry=CHATS.get(sessionId);
+  if(entry){ if(entry.unsub) entry.unsub(); CHATS.delete(sessionId); }
+  // re-enable the composer only if this session is the one on screen
+  if(VIEW_SID===sessionId){
+    setComposerBusy(false);
+    const input=$("chat-input"); if(input){ input.disabled=false; setTimeout(()=>input.focus(),30); }
+  }
 }
 
-function finishChat(){
-  setBusy(false);
-  if(CHAT_UNSUB){ CHAT_UNSUB(); CHAT_UNSUB=null; }
-  CHAT_TURN=null;
-  const input=$("chat-input"); if(input){ input.disabled=false; setTimeout(()=>input.focus(),30); }
-}
-
-function stopChat(){
-  if(CHAT_TURN) window.csb.stopChat(CHAT_TURN);
-  const st=CHAT_TURN&&$("st-"+CHAT_TURN); if(st) st.innerHTML='<span style="color:var(--muted)">(stopped)</span>';
-  finishChat();
+function stopChat(sessionId){
+  sessionId = sessionId || VIEW_SID;
+  const entry=CHATS.get(sessionId);
+  if(entry){
+    window.csb.stopChat(entry.turn);
+    const st=document.getElementById("st-"+entry.turn);
+    if(st) st.innerHTML='<span style="color:var(--muted)">(stopped)</span>';
+  }
+  finishChat(sessionId);
 }
 
 let toastTimer;

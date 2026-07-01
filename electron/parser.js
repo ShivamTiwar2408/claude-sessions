@@ -288,7 +288,14 @@ function buildIndex() {
       }
     }
   }
-  sessions.sort((a, b) => (b.mtime || 0) - (a.mtime || 0));
+  // Default order: latest activity first, by the SAME field the UI shows on
+  // each card (updated = last message timestamp). Falls back to file mtime
+  // when updated is missing. Keeps the initial paint and the AI-search
+  // "most recent" catalog consistent with the sidebar's "Latest activity".
+  sessions.sort((a, b) => {
+    const c = String(b.updated || "").localeCompare(String(a.updated || ""));
+    return c !== 0 ? c : (b.mtime || 0) - (a.mtime || 0);
+  });
   INDEX = sessions;
   return sessions;
 }

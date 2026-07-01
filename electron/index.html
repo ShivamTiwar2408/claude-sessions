@@ -620,7 +620,14 @@ function ordered(){
   const relevanceOrder = RESULTS!==null && sort==="updated";
   if(!relevanceOrder){
     list.sort((a,b)=>{
-      if(sort==="updated") return (b.mtime||0)-(a.mtime||0);
+      // "Latest activity" must match the time shown on each card (s.updated,
+      // the last message timestamp) — NOT file mtime, which gets bumped by
+      // non-conversation writes and made the visible order contradict the
+      // displayed times. Fall back to mtime only when updated is missing.
+      if(sort==="updated"){
+        const c=(b.updated||"").localeCompare(a.updated||"");
+        return c!==0 ? c : (b.mtime||0)-(a.mtime||0);
+      }
       if(sort==="created") return (a.created||"").localeCompare(b.created||"");
       if(sort==="msgs") return (b.user_msgs+b.assistant_msgs)-(a.user_msgs+a.assistant_msgs);
       if(sort==="sub") return (b.sub_count||0)-(a.sub_count||0);
